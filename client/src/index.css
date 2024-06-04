@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+body {
+    background-color: rgb(241,245,241);
+}
+
+.hero-section {
+    text-align: center;
+    padding: 50px;
+    background: url('path/to/your/background-image.jpg') no-repeat center center;
+    background-size: cover;
+  }
+  
+  .listings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+    gap: 20px;
+    padding: 20px;
+  }
