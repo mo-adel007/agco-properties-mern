@@ -1,0 +1,92 @@
+/* src/Footer.css
+.footer {
+    background-color: #000;
+    color: #fff;
+    padding: 20px;
+    text-align: center;
+  }
+  
+  .footer-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  
+  .contact-form {
+    flex: 1;
+    margin: 10px;
+  }
+  
+  .contact-form h2 {
+    font-size: 24px;
+    margin-bottom: 10px;
+  }
+  
+  .sell-now-button {
+    background-color: #ffb800;
+    color: #000;
+    padding: 10px 20px;
+    border: none;
+    cursor: pointer;
+  }
+  
+  .form-section {
+    flex: 1;
+    margin: 10px;
+  }
+  
+  .form-section h3 {
+    font-size: 20px;
+    margin-bottom: 10px;
+  }
+  
+  .form-section form {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .form-section input,
+  .form-section textarea {
+    margin-bottom: 10px;
+    padding: 10px;
+    font-size: 14px;
+  }
+  
+  .form-section button {
+    background-color: red;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    cursor: pointer;
+  }
+  
+  .recaptcha {
+    display: flex;
+    align-items: center;
+  }
+  
+  .recaptcha input {
+    margin-right: 10px;
+  }
+  
+  .footer-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 20px;
+  }
+  
+  .social-links a,
+  .contact-icons a {
+    margin: 0 10px;
+    color: white;
+    text-decoration: none;
+    font-size: 20px;
+  }
+  
+  .social-links a:hover,
+  .contact-icons a:hover {
+    color: #ffb800;
+  }
+   */
