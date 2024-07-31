@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "nodemon api/index.js",
     "start": "node api/index.js",
-    "install-server": "cd Server && npm install",
-    "start-server": "cd Server && node index.js",
+    "install-server": "cd api && npm install",
+    "start-server": "cd api && node index.js",
     "install-client": "cd client && npm install",
     "build-client": "cd client && npm run build",
     "start-client": "cd client && npm run start"
