@@ -1,5 +1,6 @@
 import Project from "../models/project.model.js";
 import Community from "../models/community.model.js";
+import Developer from "../models/developer.model.js";
 import { errorHandler } from "../utils/error.js";
 import he from 'he';
 
@@ -12,6 +13,13 @@ export const createProject = async (req, res, next) => {
     const project = await Project.create(req.body);
     return res.status(201).json(project);
   } catch (error) {
+if (error.code === 11000 && error.keyPattern?.slug) {
+      // Handle duplicate slug error
+      return res.status(400).json({
+        success: false,
+        message: "A project with the same developer, community, and name already exists. Please use a unique name.",
+      });
+    }
     next(error);
   }
 };
@@ -95,7 +103,7 @@ export const getProject = async (req, res, next) => {
 
 export const getProjects = async (req, res, next) => {
   try {
-    const projects = await Project.find().populate("community", "name").limit(15);
+    const projects = await Project.find().populate("community", "name");
   const projectsWithFilteredAmenities = projects.map(project => {
       const falseAmenities = Object.keys(project.amenities).reduce((acc, key) => {
         if (project.amenities[key] === true) {
@@ -117,6 +125,8 @@ export const getFeaturedProject = async (req, res, next) => {
       "community",
 	      "name"
     ).limit(15);
+    const developerNames = [...new Set(featuredProjects.map(project => project.developer))];
+     
  const projectsWithFilteredAmenities = featuredProjects.map(project => {
       const falseAmenities = Object.keys(project.amenities).reduce((acc, key) => {
         if (project.amenities[key] === true) {
@@ -134,26 +144,45 @@ export const getFeaturedProject = async (req, res, next) => {
 
 export const getProjectByType = async (req, res, next) => {
   try {
-    const { status,type } = req.params;
-    let projects = await Project.find({ status: "off plan",type:"residential" }).populate(
-      "community",
-      "name"
-    ).limit(15);
-    const projectsWithFilteredAmenities = projects.map(project => {
-      const falseAmenities = Object.keys(project.amenities).reduce((acc, key) => {
-        if (project.amenities[key] === true) {
-          acc[key] = true;
-        }
-        return acc;
-      }, {});
-      return { ...project.toObject(), amenities: falseAmenities };
-    });
-    res.status(200).json(projects);
+    const { status, type } = req.params;
+    let projects = await Project.find({ 
+      status: { $in: ["ready", "off plan"] },
+      type: "residential"
+    })
+    .populate("community", "name")
+    .lean()
+    .limit(15);
+
+    // Fetch developer information for each project
+    const projectsWithDeveloperInfo = await Promise.all(
+      projects.map(async (project) => {
+        const developerInfo = await Developer.findOne(
+          { name: project.developer },
+          'name logoUrl'
+        ).lean();
+
+        const falseAmenities = Object.entries(project.amenities || {})
+          .filter(([_, value]) => value === true)
+          .reduce((acc, [key]) => {
+            acc[key] = true;
+            return acc;
+          }, {});
+
+        return {
+          ...project,
+          developerLogo: developerInfo?.logoUrl || null,
+          amenities: falseAmenities
+        };
+      })
+    );
+
+    res.status(200).json(projectsWithDeveloperInfo);
   } catch (error) {
-    console.error("Error fetching listings by type:", error); // Debugging line
+    console.error("Error fetching projects by type:", error);
     next(error);
   }
 };
+    
 
 export const getProjectByCommunity = async (req, res, next) => {
   try {

@@ -13,7 +13,8 @@ const PostSchema = new Schema(
     blogAuthor: { type: String, required: true },
     category: { type: String, required: true },
     isPublished: { type: Boolean, required: true },
-    altText: { type: String },
+     coverAltText: { type: String }, // Separate field for cover image alt text
+    imageAltTexts: { type: Map, of: String }, // Store alt texts for content images
   },
   {
     timestamps: true,

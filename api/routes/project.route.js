@@ -25,7 +25,7 @@ router.delete("/delete/:id", verifyToken, deleteProject);
 router.get("/get/:slug", getProject);
 router.get("/", getProjects);
 router.get("/featured-projects", getFeaturedProject);
-router.get("/projects/:type", getProjectByType);
+router.get("/projects/newProjects", getProjectByType);
 router.get("/projects/developer/:developer", getProjectByDeveloper);
 router.get("/projects/community/:community", getProjectByCommunity);
 router.get("/search", getProjectsByQuery);

@@ -5,12 +5,12 @@ import he from 'he';
 // Create a new blog post
 export const createPost = async (req, res) => {
   try {
-    let { title, summary, content, cover, category, blogAuthor,altText } = req.body;
+    let { title, summary, content, cover, category, blogAuthor,coverAltText, imageAltTexts, slug } = req.body;
     const decodedContent = he.decode(content);
 
 
     // Generate a slug from the title
-    const slug = slugify(title, { lower: true, strict: true });
+//    const slug = slugify(title, { lower: true, strict: true });
 
     // Check if a post with the same slug already exists
     const existingPost = await Post.findOne({ slug });
@@ -27,7 +27,8 @@ export const createPost = async (req, res) => {
       category,
       blogAuthor,
       isPublished: false,
-      altText // New posts are unpublished by default
+      coverAltText,
+      imageAltTexts: new Map(Object.entries(imageAltTexts))
     });
 
     await newPost.save();
@@ -64,23 +65,24 @@ res.status(500).json({message:"Failed to fetch blog posts."})
 export const updatePost = async (req, res) => {
   try {
     const { postId } = req.params;
-    let { title, summary, content, cover, category, blogAuthor, altText } = req.body;
+    let { title, summary, content, cover, category, blogAuthor, coverAltText, imageAltTexts, slug } = req.body;
   
         const decodedContent = he.decode(content);
 
     // Generate a new slug if the title is updated
-    const slug = title ? slugify(title, { lower: true, strict: true }) : undefined;
+	//const slug = title ? slugify(title, { lower: true, strict: true }) : undefined;
 
     // Update the post
     let updatedPost = await Post.findByIdAndUpdate(
       postId,
       {
-        $set: { altText,title, summary, content:decodedContent, cover, category, blogAuthor, ...(slug && { slug }) },
+        $set: {title, summary, content:decodedContent, cover, category, blogAuthor, slug,coverAltText,
+          imageAltTexts: new Map(Object.entries(imageAltTexts)) },
       },
       { new: true, runValidators: true }
     );
-    if (req.body.altText !== undefined) updatedPost.altText = req.body.altText;
-    if (req.body.title !== undefined) updatedPost.title = req.body.title;
+//if (req.body.altText !== undefined) updatedPost.altText = req.body.altText;
+ //if (req.body.title !== undefined) updatedPost.title = req.body.title;
     if (!updatedPost) {
       return res.status(404).json({ message: "Post not found." });
     }
@@ -123,9 +125,12 @@ export const getPost = async (req, res) => {
 
     if (!post) {
       return res.status(404).json({ message: "Post not found." });
-    }
-	
-    res.status(200).json(post);
+    } 
+   // Convert Map to object for the response
+  const postObject = post.toObject();
+    postObject.imageAltTexts = Object.fromEntries(post.imageAltTexts);	
+
+    res.status(200).json(postObject);
   } catch (error) {
     console.error("Error fetching blog post:", error);
     res.status(500).json({ message: "Failed to fetch blog post." });

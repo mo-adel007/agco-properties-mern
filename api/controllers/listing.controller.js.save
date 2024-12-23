@@ -5,7 +5,6 @@ import Project from "../models/project.model.js";
 import Agent from "../models/agents.model.js";
 import Community from '../models/community.model.js'
 import Developer from '../models/developer.model.js'
-import { getCategoriesByType, getCategoryCount, sortCategoriesByCount } from '../utils/categoryHelpers.js';
 function convertCamelCaseToWords(camelCaseString) {
   return camelCaseString.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
 }
@@ -228,18 +227,45 @@ export const getPublishedListings = async (req, res, next) => {
     next(error);
   }
 };
+
 export const getListingsByStatus = async (req, res, next) => {
   try {
     const { status } = req.params;
-    let listings = await Listing.find({ status, type: "residential", isPublished: true })
+    let listings = await Listing.find({ status, type:"residential", isPublished: true })
       .populate("project", "name")
       .populate("community", "name")
-      .populate({
-        path: "agent",
-        select: "name title imageUrls",
-      })
-      .lean()
-      .limit(15);
+ .populate({
+        path: "agent", // Include the agent information
+        select: "name title imageUrls", // Select the agent fields you want to include
+      }).limit(15);
+ listings = listings.map(listing => {
+      let listingObj = listing.toObject();
+      listingObj.amenities = Object.fromEntries(
+        Object.entries(listingObj.amenities || {}).filter(([key, value]) => value)
+      );
+      return listingObj;
+    });
+    res.status(200).json(listings);
+  } catch (error) {
+    next(error);
+  }
+};
+export const getListingsByType = async (req, res, next) => {
+  try {
+    const { type } = req.params;
+    let listings = await Listing.find({ 
+      type, 
+      status: "rent", 
+      isPublished: true 
+    })
+    .populate("project", "name")
+    .populate("community", "name")
+    .populate({
+      path: "agent",
+      select: "name title imageUrls",
+    })
+    .lean()
+    .limit(15);
 
     // Fetch developer information for all listings
     const listingsWithDeveloperInfo = await Promise.all(
@@ -264,87 +290,7 @@ export const getListingsByStatus = async (req, res, next) => {
       })
     );
 
-    // Get residential categories
-    const categories = getCategoriesByType('Residential');
-
-    // Get count for each category
-    let categoriesWithCount = await Promise.all(
-      categories.map(async (category) => {
-        const count = await getCategoryCount("residential", status, category);
-        return {
-          name: category,
-          count,
-        };
-      })
-    );
-    categoriesWithCount = sortCategoriesByCount(categoriesWithCount);
-    res.status(200).json({
-      listings: listingsWithDeveloperInfo,
-      categories: categoriesWithCount
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const getListingsByType = async (req, res, next) => {
-  try {
-    const { type } = req.params;
-    let listings = await Listing.find({
-      type,
-      status: "rent",
-      isPublished: true
-    })
-      .populate("project", "name")
-      .populate("community", "name")
-      .populate({
-        path: "agent",
-        select: "name title imageUrls",
-      })
-      .lean()
-      .limit(15);
-
-    // Fetch developer information for all listings
-    const listingsWithDeveloperInfo = await Promise.all(
-      listings.map(async (listing) => {
-        const developerInfo = await Developer.findOne(
-          { name: listing.developer },
-          "name logoUrl"
-        ).lean();
-
-        const filteredAmenities = Object.entries(listing.amenities || {})
-          .filter(([_, value]) => value === true)
-          .reduce((acc, [key]) => {
-            acc[key] = true;
-            return acc;
-          }, {});
-
-        return {
-          ...listing,
-          developerLogo: developerInfo?.logoUrl || null,
-          amenities: filteredAmenities,
-        };
-      })
-    );
-
-    // Get categories for the requested type
-    const categories = getCategoriesByType(type);
-
-    // Get count for each category
-    let categoriesWithCount = await Promise.all(
-      categories.map(async (category) => {
-        const count = await getCategoryCount(type, "rent", category);
-        return {
-          name: category,
-          count,
-        };
-      })
-    );
-    categoriesWithCount = sortCategoriesByCount(categoriesWithCount);
-    res.status(200).json({
-      listings: listingsWithDeveloperInfo,
-      categories: categoriesWithCount,
-    });
+    res.status(200).json(listingsWithDeveloperInfo);
   } catch (error) {
     console.error("Error fetching listings by type:", error);
     next(error);
@@ -473,34 +419,16 @@ export const getListingsByQuery = async (req, res, next) => {
     const listings = await Listing.find(query)
       .populate("project", "name")
       .populate("community", "name")
-      .populate({
-        path: "agent",
-        select: "name title imageUrls",
-      })
-      .lean()
-      .limit(15);
+ .populate({
+        path: "agent", // Include the agent information
+        select: "name title imageUrls", // Select the agent fields you want to include
+      }).limit(15);
 
-    // Fetch developer information for all listings
-    const listingsWithDeveloperInfo = await Promise.all(
-      listings.map(async (listing) => {
-        const developerInfo = await Developer.findOne(
-          { name: listing.developer },
-          'name logoUrl'
-        ).lean();
-
-        return {
-          ...listing,
-          developerLogo: developerInfo?.logoUrl || null
-        };
-      })
-    );
-
-    res.status(200).json(listingsWithDeveloperInfo);
+    res.status(200).json(listings);
   } catch (error) {
     res.status(500).json({ message: "Server error", error });
   }
 };
-
 
 export const getListingsByQueryParams = async (req, res, next) => {
   try {
@@ -529,35 +457,17 @@ export const getListingsByQueryParams = async (req, res, next) => {
     const listings = await Listing.find(query)
       .populate({path:"project", select:"name latitude longitude"})
       .populate("community", "name")
-      .populate({
-        path: "agent",
-        select: "name title imageUrls",
-      })
-      .lean()
-      .limit(15);
+ .populate({
+        path: "agent", // Include the agent information
+        select: "name title imageUrls", // Select the agent fields you want to include
+      }).limit(15);
 
-    // Fetch developer information for all listings
-    const listingsWithDeveloperInfo = await Promise.all(
-      listings.map(async (listing) => {
-        const developerInfo = await Developer.findOne(
-          { name: listing.developer },
-          'name logoUrl'
-        ).lean();
-
-        return {
-          ...listing,
-          developerLogo: developerInfo?.logoUrl || null
-        };
-      })
-    );
-
-    res.status(200).json(listingsWithDeveloperInfo);
+    res.status(200).json(listings);
   } catch (error) {
     console.error("Server error:", error);
     res.status(500).json({ message: "Server error", error });
   }
 };
-
 
 export const getListingsByAdvancedSearch = async (req, res, next) => {
   try {
@@ -613,32 +523,15 @@ export const getListingsByAdvancedSearch = async (req, res, next) => {
 
     console.log("Final query:", query);
 
-    const listings = await Listing.find(query)
+   const listings = await Listing.find(query)
       .populate("project", "name")
       .populate("community", "name")
-      .populate({
-        path: "agent",
-        select: "name title imageUrls",
-      })
-      .lean()
-      .limit(15);
+ .populate({
+        path: "agent", // Include the agent information
+        select: "name title imageUrls", // Select the agent fields you want to include
+      }).limit(15);
 
-    // Fetch developer information for all listings
-    const listingsWithDeveloperInfo = await Promise.all(
-      listings.map(async (listing) => {
-        const developerInfo = await Developer.findOne(
-          { name: listing.developer },
-          'name logoUrl'
-        ).lean();
-
-        return {
-          ...listing,
-          developerLogo: developerInfo?.logoUrl || null
-        };
-      })
-    );
-
-    res.status(200).json(listingsWithDeveloperInfo);
+    res.status(200).json(listings);
   } catch (error) {
     console.error("Server error:", error);
     res.status(500).json({ message: "Server error", error });
@@ -791,13 +684,6 @@ export const getListingsByAgent = async (req, res) => {
         };
       })
     );
-
-    res.status(200).json(listingsWithDeveloperInfo);
-  } catch (error) {
-    console.error("Error fetching listings by agent:", error);
-    res.status(500).json({ message: "Server error" });
-  }
-};
 
 
 // Fetch similar listings based on category, status, and type

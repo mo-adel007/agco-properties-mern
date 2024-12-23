@@ -38,7 +38,7 @@ export const createDeveloper = async (req, res) => {
     const { name, logoUrl, description } = req.body;
 
     // Create a new Developer document
-    const developer = new Developer({ name, logoUrl, description });
+    const developer = new Developer({ name:name.trim(), logoUrl, description });
 
     // Save to the database
     await developer.save();

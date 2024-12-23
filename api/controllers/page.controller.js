@@ -27,12 +27,12 @@ export const getPageMeta = async (req, res) => {
 // Create or update page metadata
 export const upsertPageMeta = async (req, res) => {
   const { slug } = req.params;
-  const { title, description } = req.body;
+  const { title, description, pageHeadline } = req.body;
 
   try {
     const pageMeta = await PageMeta.findOneAndUpdate(
       { slug: slug },
-      { title, description },
+      { title, description, pageHeadline },
       { new: true, upsert: true }
     );
     res.status(200).json(pageMeta);

@@ -1,7 +1,10 @@
 import mongoose from "mongoose";
 
 const listingSchema = new mongoose.Schema({
-  developer: { type: String, required: true },
+  developer: {
+     type: String,
+    required: true,
+  },
   community: {
     type: mongoose.Schema.Types.ObjectId,
     required: true,

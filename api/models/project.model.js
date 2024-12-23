@@ -8,7 +8,7 @@ const projectSchema = new mongoose.Schema({
     ref: "Community",
     required: true,
   },
-	slug: {type:String, required: false},
+  slug: {type:String, required: false},
   name: { type: String, required: true },
   summary: { type: String, required: false },
   description: { type: String, required: true },
@@ -26,6 +26,7 @@ const projectSchema = new mongoose.Schema({
   userRef: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, // Make sure this exists
    downPaymentPercentage: {type: String, required: false},
       yearsOfInstallments: {type: String, required: false},
+startingPrice: {type:Number, required: false},
 amenities: {
   parking: { type: Boolean, default: false},
   furnished: { type: Boolean, default: false },
@@ -87,13 +88,29 @@ amenities: {
 
 });
 projectSchema.pre("save", async function (next) {
-  if (this.isNew || this.isModified("name") || this.isModified("community")) {
+  if (this.isNew || this.isModified("name") || this.isModified("community") || this.isModified("developer")) {
     try {
-      // Populate the community to access its name
+      // Populate the community and developer names
       await this.populate("community", "name");
-      this.slug = slugify(`${this.community.name}-${this.name}`, { lower: true });
+
+      // Generate base slug with developer, community, and project names
+      const baseSlug = slugify(
+        `${this.developer}-${this.community.name}-${this.name}`,
+        { lower: true }
+      );
+      let slug = baseSlug;
+
+      // Check for duplicates and append a counter if needed
+      let counter = 1;
+      while (await Project.findOne({ slug })) {
+        slug = `${baseSlug}-${counter}`;
+        counter++;
+      }
+
+      // Assign the unique slug
+      this.slug = slug;
     } catch (error) {
-      return next(error);
+      return next(error); // Pass errors to the handler
     }
   }
   next();

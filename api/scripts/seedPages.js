@@ -14,7 +14,7 @@ const pages = [
   //   description: "View detailed information about properties listed on AGCO Properties.",
   // },
   {
-    slug: "buy",
+    slug: "sale",
     title: "Buy Property | AGCO Properties",
     description: "Explore properties available for purchase with AGCO Properties.",
   },
@@ -49,7 +49,7 @@ const pages = [
     description: "Calculate your budget for property investment with AGCO Properties' budget calculator.",
   },
   {
-    slug: "results",
+    slug: "search-results",
     title: "Property Search Results | AGCO Properties",
     description: "View search results for properties on AGCO Properties.",
   },
@@ -114,15 +114,20 @@ const pages = [
     description: "A breif introduction about AGCO Properties Agents.",
   },
   {
-    slug: "why-dubai",
-    title: "why-dubai | AGCO Properties",
-    description: "Why to invest in Dubai?.",
-  },
-  {
-    slug: "our-team",
-    title: "Team Memebers | AGCO Properties",
-    description: "Take a look about or team and if you want to join.",
-  },
+    slug:"join-us",
+    title: "Join Us Today",
+    description:"Want to work in a high quality healthy environment, what are you waiting for?",
+  }
+ // {
+   // slug: "why-dubai",
+   // title: "why-dubai | AGCO Properties",
+   // description: "Why to invest in Dubai?.",
+  //},
+ // {
+   // slug: "our-team",
+   // title: "Team Memebers | AGCO Properties",
+   // description: "Take a look about or team and if you want to join.",
+ // },
 
 
 ];
