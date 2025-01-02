@@ -1,4 +1,5 @@
 import Developer from "../models/developer.model.js";
+import formatRichText from '../utils/textFormatter.js'
 
 export const getAllDevelopers = async (req, res) => {
   try {
@@ -27,7 +28,14 @@ export const getDeveloper = async (req, res) => {
     if (!developer) {
       return res.status(404).json({ message: 'Developer not found' });
     }
-    res.status(200).json(developer);
+     // Convert to plain object to allow modifications
+    let developerObj = developer.toObject();
+
+    // Format rich text fields
+    if (developerObj.description) {
+      developerObj.description = formatRichText(developerObj.description);
+    }
+    res.status(200).json(developerObj);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching developer', error: error.message });
   }

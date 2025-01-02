@@ -1,40 +1,45 @@
 // src/controllers/community.controller.js
 import Community from "../models/community.model.js";
+import Developer from "../models/developer.model.js";
 import { errorHandler } from "../utils/error.js";
 
 export const createCommunity = async (req, res, next) => {
   try {
-    const community = await Community.create(req.body);
+    const { developers, ...otherData } = req.body;
+     const community = await Community.create({
+      ...otherData,
+      developers: developers || [], // Handle developers array
+    });
     return res.status(201).json(community);
   } catch (error) {
     next(error);
   }
 };
-export const updateCommunity = async (req, res, next) => {
-  try {
-    const community = await Community.findById(req.params.id);
-    if (!community) {
-      return next(errorHandler(404, "Community not found!"));
-    }    
+//export const updateCommunity = async (req, res, next) => {
+  //try {
+   // const community = await Community.findById(req.params.id);
+    //if (!community) {
+     // return next(errorHandler(404, "Community not found!"));
+   // }    
     // Update metadata fields if they are present in the request body
-    if (req.body.altText) community.altText = req.body.altText;
-    if (req.body.title) community.title = req.body.title;
-    if (req.body.caption) community.caption = req.body.caption;
-    if (req.body.description) community.description = req.body.description;
-    if (req.body.imageUrls) community.imageUrls = req.body.imageUrls;
-    if (req.body.name) community.name = req.body.name;
-	if (req.body.address) community.address = req.body.address;
-	if(req.body.summary) community.summary = req.body.summary
-	if (typeof req.body.featured !== "undefined") {
-  community.featured = req.body.featured;
-}
-	if(req.body.developer) community.developer = req.body.developer;
-    await community.save();
-    res.status(200).json(community);
-  } catch (error) {
-    next(error);
-  }
-};
+   // if (req.body.altText) community.altText = req.body.altText;
+    //if (req.body.title) community.title = req.body.title;
+    //if (req.body.caption) community.caption = req.body.caption;
+    //if (req.body.description) community.description = req.body.description;
+    //if (req.body.imageUrls) community.imageUrls = req.body.imageUrls;
+    //if (req.body.name) community.name = req.body.name;
+	//if (req.body.address) community.address = req.body.address;
+	//if(req.body.summary) community.summary = req.body.summary
+	//if (typeof req.body.featured !== "undefined") {
+//  community.featured = req.body.featured;
+//}
+//	if(req.body.developer) community.developer = req.body.developer;
+  //  await community.save();
+   // res.status(200).json(community);
+  //} catch (error) {
+   // next(error);
+  //}
+//};
 
 // export const updateCommunity = async (req, res, next) => {
 //   try {
@@ -53,7 +58,24 @@ export const updateCommunity = async (req, res, next) => {
 //     next(error);
 //   }
 // };
+export const updateCommunity = async (req, res, next) => {
+  try {
+    const community = await Community.findById(req.params.id);
+    if (!community) {
+      return next(errorHandler(404, "Community not found!"));
+    }
 
+    // Update all fields including developers array
+    Object.keys(req.body).forEach(key => {
+      community[key] = req.body[key];
+    });
+
+    await community.save();
+    res.status(200).json(community);
+  } catch (error) {
+    next(error);
+  }
+};
 export const deleteCommunity = async (req, res, next) => {
   try {
     const community = await Community.findById(req.params.id);
@@ -103,16 +125,36 @@ export const getFeaturedCommunity = async (req, res, next) => {
   }
 };
 
-export const getCommunitiesByDeveloper = async (req, res, next) => {
+export const getCommunitiesByDeveloper = async (req, res) => {
+  const { developerId } = req.params;
+
   try {
-    const { developer } = req.params;
-    console.log(`Fetching communities for developer: ${developer}`); // Log the developer parameter
-    const communities = await Community.find({ developer });
-    console.log("Communities found:", communities); // Log the retrieved communities
-    res.status(200).json(communities);
+    // Validate if the developer exists
+    const developer = await Developer.findById(developerId);
+    if (!developer) {
+      return res.status(404).json({
+        success: false,
+        message: "Developer not found",
+      });
+    }
+
+    // Fetch communities associated with the developer
+    const communities = await Community.find({ developers: developerId }).populate(
+      "developers",
+      "name"
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Communities fetched successfully",
+      data: communities,
+    });
   } catch (error) {
-    console.error("Error fetching communities:", error); // Log the error if any
-    next(error);
+    console.error("Error fetching communities:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch communities",
+    });
   }
 };
 

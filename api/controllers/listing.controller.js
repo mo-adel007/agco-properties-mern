@@ -5,6 +5,8 @@ import Project from "../models/project.model.js";
 import Agent from "../models/agents.model.js";
 import Community from '../models/community.model.js'
 import Developer from '../models/developer.model.js'
+import formatRichText from '../utils/textFormatter.js'
+import he from 'he'
 import { getCategoriesByType, getCategoryCount, sortCategoriesByCount } from '../utils/categoryHelpers.js';
 function convertCamelCaseToWords(camelCaseString) {
   return camelCaseString.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
@@ -67,7 +69,14 @@ export const updateListing = async (req, res, next) => {
       req.body,
       { new: true }
     );
-    res.status(200).json(updatedListing);
+
+    const formattedListing = updatedListing.toObject();
+    if (formattedListing.description) {
+      formattedListing.description = formatRichText(formattedListing.description);
+    }
+    
+    // Fixed the typo here: formattedLisitng -> formattedListing
+    res.status(200).json(formattedListing);
   } catch (error) {
     next(error);
   }
@@ -156,6 +165,11 @@ export const getListingBySlug = async (req, res, next) => {
       .populate({
         path: "project",
         select: "name latitude longitude imageUrls developer deliveryDate address downPaymentPercentage typeOfUnit", // Include the project name and coordinates
+        populate: {
+          // Nested populate for developer through project
+          path: 'developer',
+          select: 'name'
+        }
       })
       .populate({
         path: "community",
@@ -164,14 +178,23 @@ export const getListingBySlug = async (req, res, next) => {
       .populate({
         path: "agent", // Include the agent information
         select: "name title imageUrls", // Select the agent fields you want to include
-      })
+      });
+
     if (!listing) {
       return next(errorHandler(404, "Listing not found!"));
     }
-listing = listing.toObject();
+
+    listing = listing.toObject();
+    if (listing.description) {
+      listing.description = formatRichText(listing.description);
+    }
+    
     listing.amenities = Object.fromEntries(
-      Object.entries(listing.amenities || {}).filter(([key, value]) => value).map(([key, value]) => [convertCamelCaseToWords(key), value])
+      Object.entries(listing.amenities || {})
+        .filter(([key, value]) => value)
+        .map(([key, value]) => [convertCamelCaseToWords(key), value])
     );
+
     res.status(200).json(listing);
   } catch (error) {
     next(error);
@@ -201,6 +224,9 @@ listing = listing.toObject();
     listing.amenities = Object.fromEntries(
       Object.entries(listing.amenities || {}).filter(([key, value]) => value).map(([key, value]) => [convertCamelCaseToWords(key), value])
     );
+if(listing.description) {
+listing.description = formatRichText(listing.description);
+}
     res.status(200).json(listing);
   } catch (error) {
     next(error);
@@ -216,6 +242,9 @@ export const getPublishedListings = async (req, res, next) => {
         path: "agent", // Include the agent information
         select: "name title imageUrls", // Select the agent fields you want to include
       }).limit(15);
+  if (listingObj.description) {
+        listingObj.description = formatRichText(listingObj.description);
+      }
  listings = listings.map(listing => {
       let listingObj = listing.toObject();
       listingObj.amenities = Object.fromEntries(
@@ -248,7 +277,9 @@ export const getListingsByStatus = async (req, res, next) => {
           { name: listing.developer },
           'name logoUrl'
         ).lean();
-
+     if (listing.description) {
+          listing.description = formatRichText(listing.description);
+        }
         const filteredAmenities = Object.entries(listing.amenities || {})
           .filter(([_, value]) => value === true)
           .reduce((acc, [key]) => {

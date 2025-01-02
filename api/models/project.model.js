@@ -2,11 +2,11 @@
 import mongoose from "mongoose";
 import slugify from "slugify";
 const projectSchema = new mongoose.Schema({
-  developer: { type: String, required: true },
+  developer: { type: mongoose.Schema.Types.ObjectId,ref:"Developer", required: true },
   community: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Community",
-    required: true,
+    required:true
   },
   slug: {type:String, required: false},
   name: { type: String, required: true },
@@ -90,27 +90,35 @@ amenities: {
 projectSchema.pre("save", async function (next) {
   if (this.isNew || this.isModified("name") || this.isModified("community") || this.isModified("developer")) {
     try {
-      // Populate the community and developer names
-      await this.populate("community", "name");
+      // Populate developer and community names
+      await this.populate([
+        { path: "community", select: "name developers" },
+        { path: "developer", select: "name" }
+      ]);
 
-      // Generate base slug with developer, community, and project names
+      // Check if the developer is associated with the community
+      if (!this.community.developers.includes(this.developer._id)) {
+        return next(new Error("Developer is not associated with this community."));
+      }
+
+      // Generate slug
       const baseSlug = slugify(
-        `${this.developer}-${this.community.name}-${this.name}`,
+        `${this.developer.name}-${this.community.name}-${this.name}`,
         { lower: true }
       );
       let slug = baseSlug;
 
-      // Check for duplicates and append a counter if needed
+      // Ensure unique slug
+      const ProjectModel = mongoose.models.Project || mongoose.model("Project", projectSchema);
       let counter = 1;
-      while (await Project.findOne({ slug })) {
+      while (await ProjectModel.findOne({ slug })) {
         slug = `${baseSlug}-${counter}`;
         counter++;
       }
 
-      // Assign the unique slug
       this.slug = slug;
     } catch (error) {
-      return next(error); // Pass errors to the handler
+      return next(error);
     }
   }
   next();

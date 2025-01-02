@@ -1,46 +1,50 @@
-import { residentialCategories, commercialCategories } from '../constants/categories.js';
-import { getCategoriesByType, getCategoryCount } from '../utils/categoryHelpers.js';
+import { getCategoriesByType, getCategoryCount, sortCategoriesByCount } from '../utils/categoryHelpers.js';
 
-export const getCategories = async (req, res) => {
-  try {
-    const categories = {
-      residential: residentialCategories,
-      commercial: commercialCategories
-    };
+export const getResidentialCategoriesWithCounts = async (req, res, next) => {
+  const { status } = req.params;
 
- if (["Residential", "Buy", "Rent"].includes(type)) {
-    return residentialCategories;
-  } else if (type === "Commercial") {
-    return commercialCategories;
+  if (!status) {
+    return res.status(400).json({ error: "Status is required as a parameter." });
   }
 
-    res.status(200).json(categories);
-  } catch (error) {
-    console.error("Error fetching categories:", error);
-    res.status(500).json({ message: "Internal server error" });
-  }
-};
-
-export const getCategoriesWithCount = async (req, res) => {
   try {
-    const { type, status } = req.query;
-    
-    const baseCategories = getCategoriesByType(type);
+    const categories = getCategoriesByType("Residential");
 
-    // Get count for each category
     const categoriesWithCount = await Promise.all(
-      baseCategories.map(async (category) => {
-        const count = await getCategoryCount(type, status, category);
-        return {
-          name: category,
-          count
-        };
+      categories.map(async (category) => {
+        const count = await getCategoryCount("residential", status, category);
+        return { name: category, count };
       })
     );
 
-    res.status(200).json(categoriesWithCount);
+    const sortedCategories = sortCategoriesByCount(categoriesWithCount);
+
+    res.status(200).json(sortedCategories);
   } catch (error) {
-    console.error("Error fetching categories with count:", error);
-    res.status(500).json({ message: "Internal server error" });
+    console.error("Error fetching residential categories with counts:", error);
+    next(error);
+  }
+};
+
+export const getCommercialCategoriesWithCounts = async (req, res, next) => {
+  try {
+    const categories = getCategoriesByType("Commercial");
+
+    const categoriesWithCount = await Promise.all(
+      categories.map(async (category) => {
+        const countBuy = await getCategoryCount("commercial", "buy", category);
+        const countRent = await getCategoryCount("commercial", "rent", category);
+        const totalCount = countBuy + countRent;
+
+        return { name: category, count: totalCount };
+      })
+    );
+
+    const sortedCategories = sortCategoriesByCount(categoriesWithCount);
+
+    res.status(200).json(sortedCategories);
+  } catch (error) {
+    console.error("Error fetching commercial categories with counts:", error);
+    next(error);
   }
 };

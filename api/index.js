@@ -130,7 +130,7 @@ app.use((err, req, res, next) => {
     message,
   });
 });
-const sslOptions = {
-  key: fs.readFileSync(path.resolve('./cert/server.key')),
-  cert: fs.readFileSync(path.resolve('./cert/server.cert')),
-};
+//const sslOptions = {
+ // key: fs.readFileSync(path.resolve('./cert/server.key')),
+ // cert: fs.readFileSync(path.resolve('./cert/server.cert')),
+//};

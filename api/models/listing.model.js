@@ -3,16 +3,13 @@ import mongoose from "mongoose";
 const listingSchema = new mongoose.Schema({
   developer: {
      type: String,
-    required: true,
   },
   community: {
     type: mongoose.Schema.Types.ObjectId,
-    required: true,
     ref: "Community",
   },
   project: {
     type: mongoose.Schema.Types.ObjectId,
-    required: true,
     ref: "Project",
   },
   agent: {

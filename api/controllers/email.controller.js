@@ -83,12 +83,21 @@ export const sendJobApplicationCairo = async (req, res, next) => {
 };
 
 export const sendContactEmail = async (req, res) => {
-  const { inquiryType, role, fields } = req.body;
+  const { 
+    inquiryType, 
+    role, 
+    fullName,
+    email,
+    phone,
+    message
+  } = req.body;
 
-  if (!fields || !Array.isArray(fields)) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Invalid form data" });
+  // Validate required fields
+  if (!inquiryType || !role || !fullName || !email || !phone) {
+    return res.status(400).json({ 
+      success: false, 
+      message: "Please fill in all required fields" 
+    });
   }
 
   const transporter = nodemailer.createTransport({
@@ -99,26 +108,30 @@ export const sendContactEmail = async (req, res) => {
     },
   });
 
+  // Build email content with available fields
   const emailContent = `
+    <h2>New Contact Form Submission</h2>
     <p><strong>Inquiry Type:</strong> ${inquiryType}</p>
     <p><strong>Role:</strong> ${role}</p>
-    ${fields
-      .map((field) => `<p><strong>${field.label}:</strong> ${field.value}</p>`)
-      .join("")}
+    <p><strong>Full Name:</strong> ${fullName}</p>
+    <p><strong>Email:</strong> ${email}</p>
+    <p><strong>Phone:</strong> ${phone}</p>
+ 	${message ? `<p><strong>Message:</strong> ${message}</p>` : ''}
   `;
 
   const mailOptions = {
     from: process.env.GMAIL_USER,
-    to: process.env.RECIPIENT_EMAIL_CONTACT, // Using the specific recipient email
+    to: process.env.RECIPIENT_EMAIL_CONTACT,
     subject: `New Contact Form Submission - ${inquiryType}`,
     html: emailContent,
   };
 
   try {
     await transporter.sendMail(mailOptions);
-    res
-      .status(200)
-      .json({ success: true, message: "Message sent successfully!" });
+    res.status(200).json({ 
+      success: true, 
+      message: "Message sent successfully!" 
+    });
   } catch (error) {
     console.error("Error sending email:", error);
     res.status(500).json({
@@ -130,19 +143,17 @@ export const sendContactEmail = async (req, res) => {
 
 export const listYourProperty = async (req, res) => {
   const {
-    userType,
     firstName,
     lastName,
     phoneNumber,
     email,
     propertyType,
-    zipCode,
     streetAddress,
     area,
     city,
     bedrooms,
     bathrooms,
-    areaSize,
+    size,
     budget,
     notes,
   } = req.body;
@@ -161,20 +172,17 @@ export const listYourProperty = async (req, res) => {
       to: process.env.RECIPIENT_EMAIL_PROPERTY, // Using the specific recipient email
       subject: "New Property Listing Request",
       text: `New property listing request from ${firstName} ${lastName}.
-      
-User Type: ${userType}
 Phone Number: ${phoneNumber}
 Email: ${email}
 
 Property Information:
 Type: ${propertyType}
-Zip Code: ${zipCode}
 Street Address: ${streetAddress}
 Area: ${area}
 City: ${city}
 Number of Bedrooms: ${bedrooms}
 Number of Bathrooms: ${bathrooms}
-Area Size: ${areaSize}
+Listing Size: ${size}
 Budget: ${budget}
 
 Notes: ${notes || "None"}

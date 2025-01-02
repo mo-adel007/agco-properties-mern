@@ -20,7 +20,7 @@ router.delete("/delete/:id", verifyToken, deleteCommunity);
 router.get("/get/:id", getCommunity);
 router.get("/communities", getCommunities);
 router.get("/featured-communities", getFeaturedCommunity);
-router.get("/communities/developer/:developer", getCommunitiesByDeveloper);
+router.get("/communities/developer/:developerId", getCommunitiesByDeveloper);
 router.get("/search-by-alt-text", searchCommunitiesByAltText);
 
 

@@ -5,44 +5,57 @@ import he from 'he';
 // Create a new blog post
 export const createPost = async (req, res) => {
   try {
-    let { title, summary, content, cover, category, blogAuthor,coverAltText, imageAltTexts, slug } = req.body;
+    const { title, summary, content, cover, category, blogAuthor, coverAltText, imageAltTexts, slug } = req.body;
+    console.log("Incoming imageAltTexts:", imageAltTexts); // Debug log
+
     const decodedContent = he.decode(content);
 
+    // Ensure imageAltTexts is converted to a Map
+    const imageAltTextsMap = imageAltTexts ? new Map(Object.entries(imageAltTexts)) : new Map();
 
-    // Generate a slug from the title
-//    const slug = slugify(title, { lower: true, strict: true });
-
-    // Check if a post with the same slug already exists
     const existingPost = await Post.findOne({ slug });
     if (existingPost) {
       return res.status(400).json({ message: "A post with this title already exists. Please use a different title." });
     }
 
-    let newPost = new Post({
+    const newPost = new Post({
       title,
-      slug, // Store slug
+      slug,
       summary,
-      content:decodedContent,
-      cover, // Store URL
+      content: decodedContent,
+      cover,
       category,
       blogAuthor,
       isPublished: false,
       coverAltText,
-      imageAltTexts: new Map(Object.entries(imageAltTexts))
+      imageAltTexts: imageAltTextsMap,
     });
 
     await newPost.save();
-    res.status(201).json(newPost);
+
+    const savedPost = await Post.findById(newPost._id); // Fetch saved post
+    console.log("Saved imageAltTexts in MongoDB:", savedPost.imageAltTexts); // Debug log
+
+    res.status(201).json(savedPost);
   } catch (error) {
     console.error("Error creating blog post:", error);
     res.status(500).json({ message: "Failed to create blog post." });
   }
 };
 
+
 // Get all blog posts
 export const getPublishedPosts = async (req, res) => {
   try {
     const posts = await Post.find({ isPublished: true }).populate("blogAuthor", "name").limit(8); // Populating the author's name
+ // Convert posts to objects and handle Map conversion
+    const formattedPosts = posts.map(post => {
+      const postObj = post.toObject();
+      if (post.imageAltTexts) {
+        postObj.imageAltTexts = Object.fromEntries(post.imageAltTexts);
+      }
+      return postObj;
+    });
     res.status(200).json(posts);
   } catch (error) {
     console.error("Error fetching blog posts:", error);
@@ -66,23 +79,33 @@ export const updatePost = async (req, res) => {
   try {
     const { postId } = req.params;
     let { title, summary, content, cover, category, blogAuthor, coverAltText, imageAltTexts, slug } = req.body;
-  
-        const decodedContent = he.decode(content);
 
-    // Generate a new slug if the title is updated
-	//const slug = title ? slugify(title, { lower: true, strict: true }) : undefined;
+    const decodedContent = he.decode(content);
 
-    // Update the post
-    let updatedPost = await Post.findByIdAndUpdate(
+    // Convert imageAltTexts to a Map
+    const imageAltTextsMap = imageAltTexts ? new Map(Object.entries(imageAltTexts)) : undefined;
+
+    const updateData = {
+      title,
+      summary,
+      content: decodedContent,
+      cover,
+      category,
+      blogAuthor,
+      slug,
+      coverAltText,
+    };
+
+    if (imageAltTextsMap) {
+      updateData.imageAltTexts = imageAltTextsMap;
+    }
+
+    const updatedPost = await Post.findByIdAndUpdate(
       postId,
-      {
-        $set: {title, summary, content:decodedContent, cover, category, blogAuthor, slug,coverAltText,
-          imageAltTexts: new Map(Object.entries(imageAltTexts)) },
-      },
+      { $set: updateData },
       { new: true, runValidators: true }
     );
-//if (req.body.altText !== undefined) updatedPost.altText = req.body.altText;
- //if (req.body.title !== undefined) updatedPost.title = req.body.title;
+
     if (!updatedPost) {
       return res.status(404).json({ message: "Post not found." });
     }
@@ -93,6 +116,7 @@ export const updatePost = async (req, res) => {
     res.status(500).json({ message: "Failed to update blog post." });
   }
 };
+
 
 // Toggle publish status of a blog post
 export const togglePublishStatus = async (req, res) => {
@@ -119,16 +143,17 @@ export const togglePublishStatus = async (req, res) => {
 export const getPost = async (req, res) => {
   try {
     const { postSlug } = req.params;
-   
-    // Find the post by ID and populate the author's name
-    const post = await Post.findOne({slug: postSlug}).populate("blogAuthor", "name");
+    const post = await Post.findOne({ slug: postSlug }).populate("blogAuthor", "name");
 
     if (!post) {
       return res.status(404).json({ message: "Post not found." });
-    } 
-   // Convert Map to object for the response
-  const postObject = post.toObject();
-    postObject.imageAltTexts = Object.fromEntries(post.imageAltTexts);	
+    }
+
+    // Convert Map to Object
+    const postObject = post.toObject();
+    postObject.imageAltTexts = post.imageAltTexts ? Object.fromEntries(post.imageAltTexts) : {};
+
+    console.log("Fetched imageAltTexts:", postObject.imageAltTexts); // Debug log
 
     res.status(200).json(postObject);
   } catch (error) {
@@ -136,6 +161,7 @@ export const getPost = async (req, res) => {
     res.status(500).json({ message: "Failed to fetch blog post." });
   }
 };
+
 
 export const searchPostsByAltText = async (req, res) => {
   try {
