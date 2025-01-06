@@ -220,30 +220,20 @@ export const getFeaturedProject = async (req, res, next) => {
   try {
     let featuredProjects = await Project.find({ featured: true })
       .populate("community", "name")
+      .populate("developer", "name logoUrl")
+	.lean()
       .limit(15);
 
-    const projectsWithInfo = await Promise.all(
-      featuredProjects.map(async (project) => {
-        const projectObj = project.toObject();
-        const developerInfo = await Developer.findOne(
-          { name: projectObj.developer },
-          'name logoUrl'
-        ).lean();
-
-        const formattedAmenities = Object.entries(projectObj.amenities || {})
-          .filter(([_, value]) => value === true)
-          .reduce((acc, [key]) => {
-            acc[convertCamelCaseToWords(key)] = true;
-            return acc;
-          }, {});
-
-        return {
-          ...projectObj,
-          developerLogo: developerInfo?.logoUrl || null,
-          amenities: formattedAmenities
-        };
-      })
-    );
+ const projectsWithInfo = featuredProjects.map(project => ({
+      ...project,
+      developerLogo: project.developer?.logoUrl || null,
+      amenities: Object.entries(project.amenities || {})
+        .filter(([_, value]) => value === true)
+        .reduce((acc, [key]) => {
+          acc[key] = true;
+          return acc;
+        }, {})
+    }));
 
     res.status(200).json(projectsWithInfo);
   } catch (error) {
@@ -259,33 +249,22 @@ export const getProjectByType = async (req, res, next) => {
       type: "residential"
     })
     .populate("community", "name")
+	.populate("developer","name logoUrl")
     .lean()
     .limit(15);
+ const projectsWithInfo = projects.map(project => ({
+      ...project,
+      developerLogo: project.developer?.logoUrl || null,
+      amenities: Object.entries(project.amenities || {})
+        .filter(([_, value]) => value === true)
+        .reduce((acc, [key]) => {
+          acc[key] = true;
+          return acc;
+        }, {})
+    }));
 
-    // Fetch developer information for each project
-    const projectsWithDeveloperInfo = await Promise.all(
-      projects.map(async (project) => {
-        const developerInfo = await Developer.findOne(
-          { name: project.developer },
-          'name logoUrl'
-        ).lean();
 
-            const formattedAmenities = Object.entries(project.amenities || {})
-          .filter(([_, value]) => value === true)
-          .reduce((acc, [key]) => {
-            acc[convertCamelCaseToWords(key)] = true;
-            return acc;
-          }, {});
-
-        return {
-          ...project,
-          developerLogo: developerInfo?.logoUrl || null,
-          amenities: formattedAmenities
-        };
-      })
-    );
-
-    res.status(200).json(projectsWithDeveloperInfo);
+    res.status(200).json(projectsWithInfo);
   } catch (error) {
     console.error("Error fetching projects by type:", error);
     next(error);
@@ -330,6 +309,74 @@ export const getProjectByCommunity = async (req, res, next) => {
   }
 };
 
+export const getProjectsBySlug = async (req, res, next) => {
+  try {
+    const { communitySlug, developerSlug } = req.params;
+
+    const [community, developer] = await Promise.all([
+      Community.findOne({
+        $or: [{ slug: communitySlug }, { name: communitySlug }]
+      }).select('_id'),
+      Developer.findOne({
+        $or: [{ slug: developerSlug }, { name: developerSlug }]
+      }).select('_id')
+    ]);
+
+    if (!community || !developer) {
+      return res.status(404).json({
+        success: false,
+        message: 'Community or developer not found'
+      });
+    }
+
+    const projects = await Project.find({
+      community: community._id,
+      developer: developer._id
+    })
+    .populate({
+      path: 'community',
+      select: 'name slug imageUrls description'
+    })
+    .populate({
+      path: 'developer',
+      select: 'name logoUrl slug description'
+    })
+    .limit(15);
+
+    if (projects.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No projects found for this community and developer combination'
+      });
+    }
+
+    const projectsWithInfo = projects.map(project => {
+      const projectObj = project.toObject();
+      const formattedAmenities = projectObj.amenities ? 
+        Object.entries(projectObj.amenities)
+          .filter(([_, value]) => value === true)
+          .reduce((acc, [key]) => {
+            acc[key] = true;
+            return acc;
+          }, {}) 
+        : {};
+
+      return {
+        ...projectObj,
+        developerLogo: projectObj.developer?.logoUrl || null,
+        amenities: formattedAmenities
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      data: projectsWithInfo
+    });
+  } catch (error) {
+    console.error("Error fetching projects by slugs:", error);
+    next(error);
+  }
+};
 //export const getProjectByDeveloper = async (req, res, next) => {
  // try {
     //const { developer } = req.params;
@@ -385,30 +432,20 @@ export const getProjectsByQuery = async (req, res, next) => {
 
     let projects = await Project.find(filter)
       .populate("community", "name")
+	.populate("developer","name logoUrl")
+	.lean()
       .limit(15);
 
-    const projectsWithInfo = await Promise.all(
-      projects.map(async (project) => {
-        const projectObj = project.toObject();
-        const developerInfo = await Developer.findOne(
-          { name: projectObj.developer },
-          'name logoUrl'
-        ).lean();
-
-        const formattedAmenities = Object.entries(projectObj.amenities || {})
-          .filter(([_, value]) => value === true)
-          .reduce((acc, [key]) => {
-            acc[convertCamelCaseToWords(key)] = true;
-            return acc;
-          }, {});
-
-        return {
-          ...projectObj,
-          developerLogo: developerInfo?.logoUrl || null,
-          amenities: formattedAmenities
-        };
-      })
-    );
+        const projectsWithInfo = projects.map(project => ({
+      ...project,
+      developerLogo: project.developer?.logoUrl || null,
+      amenities: Object.entries(project.amenities || {})
+        .filter(([_, value]) => value === true)
+        .reduce((acc, [key]) => {
+          acc[key] = true;
+          return acc;
+        }, {})
+    }));
 
     res.status(200).json(projectsWithInfo);
   } catch (error) {
@@ -437,30 +474,20 @@ export const getProjectByAdvancedSearch = async (req, res, next) => {
 
     let projects = await Project.find(filter)
       .populate("community", "name")
+	.populate("developer","name logoUrl")
+	.lean()
       .limit(15);
 
-    const projectsWithInfo = await Promise.all(
-      projects.map(async (project) => {
-        const projectObj = project.toObject();
-        const developerInfo = await Developer.findOne(
-          { name: projectObj.developer },
-          'name logoUrl'
-        ).lean();
-
-        const formattedAmenities = Object.entries(projectObj.amenities || {})
-          .filter(([_, value]) => value === true)
-          .reduce((acc, [key]) => {
-            acc[convertCamelCaseToWords(key)] = true;
-            return acc;
-          }, {});
-
-        return {
-          ...projectObj,
-          developerLogo: developerInfo?.logoUrl || null,
-          amenities: formattedAmenities
-        };
-      })
-    );
+ const projectsWithInfo = projects.map(project => ({
+      ...project,
+      developerLogo: project.developer?.logoUrl || null,
+      amenities: Object.entries(project.amenities || {})
+        .filter(([_, value]) => value === true)
+        .reduce((acc, [key]) => {
+          acc[key] = true;
+          return acc;
+        }, {})
+    }));
 
     res.status(200).json(projectsWithInfo);
   } catch (error) {
@@ -479,37 +506,64 @@ export const searchProjectsByAltText = async (req, res) => {
     res.status(500).json({ message: "Error searching projects", error });
   }
 };
-export const getRelatedProjects = async (req, res) => {
+
+export const getRelatedProjects = async (req, res, next) => {
   try {
-    const { developer, type,currentProjectId, status } = req.params;
+    const { developer,currentProjectId } = req.params;
 
-    // Find projects that match the developer and type (commercial or residential)
-    let relatedProjects = await Project.find({
-      developer: developer.toUpperCase(), // assuming developer names are stored in uppercase
-      type: type, // assuming type is lowercase (commercial, residential)
-	_id: { $ne: currentProjectId }, // Exclude current project by ID
-	status: "off plan"
-    }).limit(15);
-
-  if (!relatedProjects) {
-      return next(errorHandler(404, "No related projects found!"));
+    // First, find the developer document by name
+    const developerDoc = await Developer.findOne({ name: developer });
+    
+    if (!developerDoc) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "Developer not found" 
+      });
     }
- const projectsWithFilteredAmenities = relatedProjects.map(project => {
-      const falseAmenities = Object.keys(project.amenities).reduce((acc, key) => {
-        if (project.amenities[key] === true) {
+
+    // Find projects that match the developer ID and type
+    const relatedProjects = await Project.find({
+      developer: developerDoc._id, // Use the developer's ObjectId
+      _id: { $ne: currentProjectId }, // Exclude current project
+    })
+    .populate("community", "name")
+    .populate("developer", "name logoUrl")
+    .lean()
+    .limit(15);
+
+    if (!relatedProjects || relatedProjects.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "No related projects found" 
+      });
+    }
+
+    // Format the response data
+    const formattedProjects = relatedProjects.map(project => ({
+      ...project,
+      developerLogo: project.developer?.logoUrl || null,
+      amenities: Object.entries(project.amenities || {})
+        .filter(([_, value]) => value === true)
+        .reduce((acc, [key]) => {
           acc[key] = true;
-        }
-        return acc;
-      }, {});
-      return { ...project.toObject(), amenities: falseAmenities };
+          return acc;
+        }, {})
+    }));
+
+    res.status(200).json({ 
+      success: true, 
+      projects: formattedProjects 
     });
 
-    res.status(200).json({ success: true, projects: relatedProjects });
   } catch (error) {
     console.error("Error fetching related projects:", error);
-    res.status(500).json({ success: false, message: "Server error" });
+    res.status(500).json({ 
+      success: false, 
+      message: "Server error" 
+    });
   }
 };
+
 export const getPriceIndicatorData = async (req, res) => {
   try {
     const { developer, communities } = req.query;
@@ -521,13 +575,45 @@ export const getPriceIndicatorData = async (req, res) => {
       });
     }
 
+    // Find developer by slug or name
+    const developerDoc = await Developer.findOne({ 
+      $or: [
+        { slug: developer },
+        { name: developer }
+      ]
+    }).select('_id');
+
+    if (!developerDoc) {
+      return res.status(404).json({
+        success: false,
+        message: 'Developer not found'
+      });
+    }
+
     // Convert communities string to array if needed
-    const communityIds = Array.isArray(communities) 
-      ? communities 
+    const communityNames = Array.isArray(communities)
+      ? communities
       : communities.split(',');
 
+    // Find communities by slug or name
+    const communityDocs = await Community.find({
+      $or: [
+        { slug: { $in: communityNames } },
+        { name: { $in: communityNames } }
+      ]
+    }).select('_id');
+
+    if (communityDocs.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No communities found'
+      });
+    }
+
+    const communityIds = communityDocs.map(doc => doc._id);
+
     const projects = await Project.find({
-      developer: developer,
+      developer: developerDoc._id,
       community: { $in: communityIds }
     })
     .select('name startingPrice latitude longitude imageUrls slug')
@@ -549,6 +635,7 @@ export const getPriceIndicatorData = async (req, res) => {
       data: mappedProjects
     });
   } catch (error) {
+    console.error('Price indicator error:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching price indicator data',

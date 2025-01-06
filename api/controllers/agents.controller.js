@@ -4,12 +4,17 @@ import Listing from "../models/listing.model.js";
 // Create a new agent
 export const createAgent = async (req, res) => {
   try {
+ const slug = req.body.name
+      .toLowerCase()
+      .replace(/[^\w\s-]/g, '') // Remove special characters
+      .replace(/\s+/g, '-') // Replace spaces with hyphens
+      .trim();
     const agent = new Agent({
       imageUrls: req.body.imageUrls,
       title: req.body.title,
       name: req.body.name,
       isPublished: req.body.isPublished,
-	slug:req.body.name,
+	slug:slug,
 email: req.body.email,
  languages: req.body.languages,
 nationality: req.body.nationality,

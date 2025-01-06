@@ -6,6 +6,7 @@ import Agent from "../models/agents.model.js";
 import Community from '../models/community.model.js'
 import Developer from '../models/developer.model.js'
 import formatRichText from '../utils/textFormatter.js'
+import {buildPropertyQuery} from '../utils/queryBuilder.js';
 import he from 'he'
 import { getCategoriesByType, getCategoryCount, sortCategoriesByCount } from '../utils/categoryHelpers.js';
 function convertCamelCaseToWords(camelCaseString) {
@@ -14,8 +15,13 @@ function convertCamelCaseToWords(camelCaseString) {
 
 export const createListing = async (req, res, next) => {
   try {
-    const { project, community, agent } = req.body;
-
+    const { project, community, agent,name } = req.body;
+    const slug = name.toLowerCase()
+    .replace(/\|/g, '-') // Replace pipe characters with hyphens
+    .replace(/[^\w\s-]/g, '') // Remove other special characters
+    .replace(/\s+/g, '-') // Replace spaces with hyphens
+    .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
+    .trim(); 
     // Validate ObjectId
     if (
       !mongoose.Types.ObjectId.isValid(project) ||
@@ -43,6 +49,7 @@ export const createListing = async (req, res, next) => {
     // Create new listing
     const listing = new Listing({
       ...req.body,
+	slug,
     });
 
     await listing.save();
@@ -232,28 +239,38 @@ listing.description = formatRichText(listing.description);
     next(error);
   }
 };
-
 export const getPublishedListings = async (req, res, next) => {
   try {
     let listings = await Listing.find({ isPublished: true })
       .populate({path: "project", select: "name latitude longitude"})
-      .populate({path:"community", select:"name"})
+      .populate({path: "community", select: "name"})
       .populate({
-        path: "agent", // Include the agent information
-        select: "name title imageUrls", // Select the agent fields you want to include
-      }).limit(15);
-  if (listingObj.description) {
+        path: "agent",
+        select: "name title imageUrls"
+      })
+      .limit(15);
+
+    const formattedListings = listings.map(listing => {
+      const listingObj = listing.toObject();
+
+      // Format description if it exists
+      if (listingObj.description) {
         listingObj.description = formatRichText(listingObj.description);
       }
- listings = listings.map(listing => {
-      let listingObj = listing.toObject();
+
+      // Format amenities
       listingObj.amenities = Object.fromEntries(
-        Object.entries(listingObj.amenities || {}).filter(([key, value]) => value).map(([key, value]) => [convertCamelCaseToWords(key), value])
+        Object.entries(listingObj.amenities || {})
+          .filter(([_, value]) => value)
+          .map(([key, value]) => [convertCamelCaseToWords(key), value])
       );
+
       return listingObj;
     });
-    res.status(200).json(listings);
+
+    res.status(200).json(formattedListings);
   } catch (error) {
+    console.error("Error fetching published listings:", error);
     next(error);
   }
 };
@@ -267,51 +284,29 @@ export const getListingsByStatus = async (req, res, next) => {
         path: "agent",
         select: "name title imageUrls",
       })
+	.populate({path:"developer",select:"name logoUrl"})
       .lean()
       .limit(15);
 
-    // Fetch developer information for all listings
-    const listingsWithDeveloperInfo = await Promise.all(
-      listings.map(async (listing) => {
-        const developerInfo = await Developer.findOne(
-          { name: listing.developer },
-          'name logoUrl'
-        ).lean();
-     if (listing.description) {
-          listing.description = formatRichText(listing.description);
-        }
-        const filteredAmenities = Object.entries(listing.amenities || {})
-          .filter(([_, value]) => value === true)
-          .reduce((acc, [key]) => {
-            acc[key] = true;
-            return acc;
-          }, {});
+ const listingsWithFormattedData = listings.map(listing => {
+      const filteredAmenities = Object.entries(listing.amenities || {})
+        .filter(([_, value]) => value === true)
+        .reduce((acc, [key]) => {
+          acc[key] = true;
+          return acc;
+        }, {});
 
-        return {
-          ...listing,
-          developerLogo: developerInfo?.logoUrl || null,
-          amenities: filteredAmenities
-        };
-      })
-    );
+      return {
+        ...listing,
+        developerLogo: listing.developer?.logoUrl || null,
+        amenities: filteredAmenities
+      };
+    });
 
     // Get residential categories
-    const categories = getCategoriesByType('Residential');
-
-    // Get count for each category
-    let categoriesWithCount = await Promise.all(
-      categories.map(async (category) => {
-        const count = await getCategoryCount("residential", status, category);
-        return {
-          name: category,
-          count,
-        };
-      })
-    );
-    categoriesWithCount = sortCategoriesByCount(categoriesWithCount);
+   
     res.status(200).json({
-      listings: listingsWithDeveloperInfo,
-      categories: categoriesWithCount
+      listings: listingsWithFormattedData,
     });
   } catch (error) {
     next(error);
@@ -332,49 +327,30 @@ export const getListingsByType = async (req, res, next) => {
         path: "agent",
         select: "name title imageUrls",
       })
+      .populate({path:"developer",
+       select:"name logoUrl"})
       .lean()
       .limit(15);
 
     // Fetch developer information for all listings
-    const listingsWithDeveloperInfo = await Promise.all(
-      listings.map(async (listing) => {
-        const developerInfo = await Developer.findOne(
-          { name: listing.developer },
-          "name logoUrl"
-        ).lean();
+     const listingsWithFormattedData = listings.map(listing => {
+      const filteredAmenities = Object.entries(listing.amenities || {})
+        .filter(([_, value]) => value === true)
+        .reduce((acc, [key]) => {
+          acc[key] = true;
+          return acc;
+        }, {});
 
-        const filteredAmenities = Object.entries(listing.amenities || {})
-          .filter(([_, value]) => value === true)
-          .reduce((acc, [key]) => {
-            acc[key] = true;
-            return acc;
-          }, {});
+      return {
+        ...listing,
+        developerLogo: listing.developer?.logoUrl || null,
+        amenities: filteredAmenities
+      };
+    });
 
-        return {
-          ...listing,
-          developerLogo: developerInfo?.logoUrl || null,
-          amenities: filteredAmenities,
-        };
-      })
-    );
-
-    // Get categories for the requested type
-    const categories = getCategoriesByType(type);
-
-    // Get count for each category
-    let categoriesWithCount = await Promise.all(
-      categories.map(async (category) => {
-        const count = await getCategoryCount(type, "rent", category);
-        return {
-          name: category,
-          count,
-        };
-      })
-    );
-    categoriesWithCount = sortCategoriesByCount(categoriesWithCount);
+    
     res.status(200).json({
-      listings: listingsWithDeveloperInfo,
-      categories: categoriesWithCount,
+      listings:listingsWithFormattedData,
     });
   } catch (error) {
     console.error("Error fetching listings by type:", error);
@@ -531,64 +507,100 @@ export const getListingsByQuery = async (req, res, next) => {
     res.status(500).json({ message: "Server error", error });
   }
 };
-
-
-export const getListingsByQueryParams = async (req, res, next) => {
+export const getListingsByQueryParams = async (req, res) => {
   try {
-    const { option, category, bedrooms, location } = req.query;
+    const { type, status, category, isPublished } = req.query;
     console.log("Received query params:", req.query);
-    let query = { isPublished: true };
+    
+    // Base query
+    let query = { 
+      isPublished: true,
+      status: { $ne: "sold" }
+    };
 
-    if (option) {
-      if (option === "Commercial") {
-        query.type = "commercial";
-      } else if (option === "Buy") {
-        query.type = "residential";
-        query.status = "buy";
-      } else if (option === "Rent") {
-        query.type = "residential";
-        query.status = "rent";
+    // Add type filter if provided
+    if (type) {
+      if (!["commercial", "residential"].includes(type)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid property type. Must be either 'commercial' or 'residential'"
+        });
       }
+      query.type = type;
     }
 
-    if (category) query.category = category;
-    if (bedrooms) query.bedrooms = bedrooms;
-    if (location) query.address = new RegExp(location, "i");
+    // Add status filter if provided
+    if (status) {
+      if (!["buy", "rent"].includes(status)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid status. Must be either 'buy' or 'rent'"
+        });
+      }
+      query.status = status;
+    }
+
+    // Add category filter if provided
+    if (category) {
+      query.category = category;
+    }
 
     console.log("Final query:", query);
 
     const listings = await Listing.find(query)
-      .populate({path:"project", select:"name latitude longitude"})
+      .populate({ 
+        path: "project", 
+        select: "name latitude longitude" 
+      })
       .populate("community", "name")
       .populate({
         path: "agent",
         select: "name title imageUrls",
       })
+      .populate({ 
+        path: "developer", 
+        select: "name logoUrl" 
+      })
       .lean()
       .limit(15);
 
-    // Fetch developer information for all listings
-    const listingsWithDeveloperInfo = await Promise.all(
-      listings.map(async (listing) => {
-        const developerInfo = await Developer.findOne(
-          { name: listing.developer },
-          'name logoUrl'
-        ).lean();
+    const listingsWithFormattedData = listings.map(listing => ({
+      id: listing._id,
+      name: listing.name,
+      address: listing.address,
+      type: listing.type,
+      status: listing.status,
+      category: listing.category,
+      bedrooms: listing.bedrooms,
+      bathrooms: listing.bathrooms,
+      size: listing.size,
+      regularPrice: listing.regularPrice,
+      imageUrls: listing.imageUrls,
+      project: listing.project,
+      community: listing.community,
+      agent: listing.agent,
+      developer: listing.developer,
+      developerLogo: listing.developer?.logoUrl || null,
+      latitude: listing.latitude,
+      longitude: listing.longitude,
+      slug: listing.slug,
+    }));
 
-        return {
-          ...listing,
-          developerLogo: developerInfo?.logoUrl || null
-        };
-      })
-    );
+    return res.status(200).json({
+      success: true,
+      count: listingsWithFormattedData.length,
+      data: listingsWithFormattedData
+    });
 
-    res.status(200).json(listingsWithDeveloperInfo);
   } catch (error) {
     console.error("Server error:", error);
-    res.status(500).json({ message: "Server error", error });
+    return res.status(500).json({ 
+      success: false,
+      message: "Server error",
+      error: error.message 
+    });
   }
 };
-
 
 export const getListingsByAdvancedSearch = async (req, res, next) => {
   try {
@@ -651,25 +663,17 @@ export const getListingsByAdvancedSearch = async (req, res, next) => {
         path: "agent",
         select: "name title imageUrls",
       })
+	.populate({path:"developer",select:"name logoUrl"})
       .lean()
       .limit(15);
 
-    // Fetch developer information for all listings
-    const listingsWithDeveloperInfo = await Promise.all(
-      listings.map(async (listing) => {
-        const developerInfo = await Developer.findOne(
-          { name: listing.developer },
-          'name logoUrl'
-        ).lean();
 
-        return {
-          ...listing,
-          developerLogo: developerInfo?.logoUrl || null
-        };
-      })
-    );
+       const listingsWithFormattedData = listings.map(listing => ({
+      ...listing,
+      developerLogo: listing.developer?.logoUrl || null
+    }));
 
-    res.status(200).json(listingsWithDeveloperInfo);
+    res.status(200).json(listingsWithFormattedData);
   } catch (error) {
     console.error("Server error:", error);
     res.status(500).json({ message: "Server error", error });

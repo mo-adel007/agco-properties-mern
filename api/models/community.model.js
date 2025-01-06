@@ -11,6 +11,13 @@ const CommunitySchema = new mongoose.Schema({
   address: { type: String },
   featured: { type: Boolean, default: false },
   userRef: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  slug: { type: String }
 });
-
+// Add pre-save middleware to generate slug from name
+CommunitySchema.pre("save", function (next) {
+  if (!this.slug && this.name) {
+    this.slug = this.name.toLowerCase().replace(/\s+/g, "-");
+  }
+  next();
+});
 export default mongoose.model("Community", CommunitySchema);

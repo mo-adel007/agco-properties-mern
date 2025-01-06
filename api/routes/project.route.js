@@ -15,7 +15,8 @@ import {
   getProjectByAdvancedSearch,
   searchProjectsByAltText,
 getRelatedProjects,
-getPriceIndicatorData
+getPriceIndicatorData,
+getProjectsBySlug
 } from "../controllers/project.controller.js";
 
 const router = express.Router();
@@ -33,9 +34,10 @@ router.get("/search", getProjectsByQuery);
 router.get("/advanced-search",getProjectByAdvancedSearch);
 router.get("/search-by-alt-text", searchProjectsByAltText);
 router.get(
-  '/related/:developer/:type/:currentProjectId',
+  '/related/:developer/:currentProjectId',
   getRelatedProjects
 );
+router.get('/projects/:communitySlug/:developerSlug', getProjectsBySlug);
 router.get('/price-indicator', getPriceIndicatorData);
 
 export default router;

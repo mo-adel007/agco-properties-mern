@@ -2,7 +2,8 @@ import mongoose from "mongoose";
 
 const listingSchema = new mongoose.Schema({
   developer: {
-     type: String,
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "Developer"
   },
   community: {
     type: mongoose.Schema.Types.ObjectId,
