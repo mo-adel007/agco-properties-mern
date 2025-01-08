@@ -171,7 +171,7 @@ export const getListingBySlug = async (req, res, next) => {
     let listing = await Listing.findOne({ slug: req.params.slug }) // Change to findOne using slug
       .populate({
         path: "project",
-        select: "name latitude longitude imageUrls developer deliveryDate address downPaymentPercentage typeOfUnit", // Include the project name and coordinates
+        select: "name slug latitude longitude imageUrls developer deliveryDate address downPaymentPercentage typeOfUnit", // Include the project name and coordinates
         populate: {
           // Nested populate for developer through project
           path: 'developer',
@@ -184,7 +184,7 @@ export const getListingBySlug = async (req, res, next) => {
       })
       .populate({
         path: "agent", // Include the agent information
-        select: "name title imageUrls", // Select the agent fields you want to include
+        select: "name title imageUrls slug", // Select the agent fields you want to include
       });
 
     if (!listing) {
@@ -246,7 +246,7 @@ export const getPublishedListings = async (req, res, next) => {
       .populate({path: "community", select: "name"})
       .populate({
         path: "agent",
-        select: "name title imageUrls"
+        select: "name title imageUrls slug"
       })
       .limit(15);
 
@@ -282,7 +282,7 @@ export const getListingsByStatus = async (req, res, next) => {
       .populate("community", "name")
       .populate({
         path: "agent",
-        select: "name title imageUrls",
+        select: "name title imageUrls slug",
       })
 	.populate({path:"developer",select:"name logoUrl"})
       .lean()
@@ -325,7 +325,7 @@ export const getListingsByType = async (req, res, next) => {
       .populate("community", "name")
       .populate({
         path: "agent",
-        select: "name title imageUrls",
+        select: "name title imageUrls slug",
       })
       .populate({path:"developer",
        select:"name logoUrl"})
@@ -368,7 +368,7 @@ export const getFeaturedListings = async (req, res, next) => {
       .populate("community", "name")
  .populate({
         path: "agent", // Include the agent information
-        select: "name title imageUrls", // Select the agent fields you want to include
+        select: "name title imageUrls slug", // Select the agent fields you want to include
       }).limit(15);
   featuredListings = featuredListings.map(listing => {
       let listingObj = listing.toObject();
@@ -388,7 +388,7 @@ export const getListingsByCategory = async (req, res, next) => {
     const { category } = req.params;
     let listings = await Listing.find({ category, isPublished: true }) .populate({
         path: "agent", // Include the agent information
-        select: "name title imageUrls", // Select the agent fields you want to include
+        select: "name title imageUrls slug", // Select the agent fields you want to include
       }).limit(15);
  listings = listings.map(listing => {
       let listingObj = listing.toObject();
@@ -424,7 +424,7 @@ export const getListingByProject = async (req, res, next) => {
     }).populate("project", "name")
  .populate({
         path: "agent", // Include the agent information
-        select: "name title imageUrls", // Select the agent fields you want to include
+        select: "name title imageUrls slug", // Select the agent fields you want to include
       }).limit(15);
     console.log("Listings found:", listings); // Debug log
 
@@ -482,7 +482,7 @@ export const getListingsByQuery = async (req, res, next) => {
       .populate("community", "name")
       .populate({
         path: "agent",
-        select: "name title imageUrls",
+        select: "name title imageUrls slug",
       })
       .lean()
       .limit(15);
@@ -492,7 +492,7 @@ export const getListingsByQuery = async (req, res, next) => {
       listings.map(async (listing) => {
         const developerInfo = await Developer.findOne(
           { name: listing.developer },
-          'name logoUrl'
+          'name logoUrl slug'
         ).lean();
 
         return {
@@ -555,11 +555,11 @@ export const getListingsByQueryParams = async (req, res) => {
       .populate("community", "name")
       .populate({
         path: "agent",
-        select: "name title imageUrls",
+        select: "name title imageUrls slug",
       })
       .populate({ 
         path: "developer", 
-        select: "name logoUrl" 
+        select: "name logoUrl slug" 
       })
       .lean()
       .limit(15);
@@ -661,9 +661,9 @@ export const getListingsByAdvancedSearch = async (req, res, next) => {
       .populate("community", "name")
       .populate({
         path: "agent",
-        select: "name title imageUrls",
+        select: "name title imageUrls slug",
       })
-	.populate({path:"developer",select:"name logoUrl"})
+	.populate({path:"developer",select:"name logoUrl slug"})
       .lean()
       .limit(15);
 
@@ -705,7 +705,7 @@ export const getAllListings = async (req, res, next) => {
       .populate("community", "name")
  .populate({
         path: "agent", // Include the agent information
-        select: "name title imageUrls", // Select the agent fields you want to include
+        select: "name title imageUrls slug", // Select the agent fields you want to include
       });
       console.log("Listings from DB:", listings); // Log data to check
  listings = listings.map(listing => {
@@ -753,7 +753,7 @@ export const getSuccessfulListings = async (req, res) => {
       .populate("userRef")
  .populate({
         path: "agent", // Include the agent information
-        select: "name title imageUrls", // Select the agent fields you want to include
+        select: "name title imageUrls slug", // Select the agent fields you want to include
       }).limit(15);
  successfulListings = successfulListings.map(listing => {
       const listingObj = listing.toObject();
@@ -809,7 +809,7 @@ export const getListingsByAgent = async (req, res) => {
       listings.map(async (listing) => {
         const developerInfo = await Developer.findOne(
           { name: listing.developer },
-          'name logoUrl'
+          'name logoUrl slug'
         ).lean();
 
         const filteredAmenities = Object.entries(listing.amenities || {})
@@ -855,7 +855,8 @@ export const getSimilarListings = async (req, res) => {
       type,
       isPublished: true, // Optionally include this to only return published listings
       _id: { $ne: currentListingId }, // Exclude the current listing
-    }).limit(12);
+    }).populate({path:"agent",select:"name imageUrls slug"})
+.limit(12);
 
     // Check if any listings are found
     if (listings.length === 0) {
@@ -893,7 +894,7 @@ export const getListingsByDeveloper = async (req, res) => {
       project: { $ne: projectId }, // Exclude listings that belong to the current project
     }).populate('community project').populate({
         path: "agent", // Include the agent information
-        select: "name title imageUrls", // Select the agent fields you want to include
+        select: "name title imageUrls slug", // Select the agent fields you want to include
       }).limit(15);
 
     if (!listings.length) {

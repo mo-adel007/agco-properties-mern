@@ -156,7 +156,7 @@ export const getProject = async (req, res, next) => {
     const { slug } = req.params;
     let project = await Project.findOne({ slug })
 	.populate("community", "name")
-	.populate('developer','name logoUrl')
+	.populate('developer','name logoUrl slug')
 
     if (!project) {
       return next(errorHandler(404, "Project not found!"));

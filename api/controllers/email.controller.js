@@ -7,6 +7,13 @@ export const sendJobApplicationDubai = async (req, res, next) => {
   const { name, email, phone, position } = req.body;
   const cv = req.file;
 
+  if (!cv) {
+    return res.status(400).json({
+      success: false,
+      message: "CV file is required. Please upload your CV and try again.",
+    });
+  }
+
   const transporter = nodemailer.createTransport({
     service: "gmail",
     auth: {
@@ -18,7 +25,7 @@ export const sendJobApplicationDubai = async (req, res, next) => {
   try {
     const mailOptions = {
       from: process.env.GMAIL_USER,
-      to: process.env.RECIPIENT_EMAIL_JOB_DUBAI, // Using the specific recipient email
+      to: process.env.RECIPIENT_EMAIL_JOB_DUBAI,
       subject: `Job Application for ${position}`,
       text: `Name: ${name}\nEmail: ${email}\nPhone: ${phone}\nPosition: ${position}\n`,
       attachments: [
@@ -31,9 +38,7 @@ export const sendJobApplicationDubai = async (req, res, next) => {
     };
 
     await transporter.sendMail(mailOptions);
-    res
-      .status(200)
-      .json({ success: true, message: "Application sent successfully!" });
+    res.status(200).json({ success: true, message: "Application sent successfully!" });
   } catch (error) {
     console.error("Error sending email:", error);
     res.status(500).json({
@@ -42,9 +47,17 @@ export const sendJobApplicationDubai = async (req, res, next) => {
     });
   }
 };
+
 export const sendJobApplicationCairo = async (req, res, next) => {
   const { name, email, phone, position } = req.body;
   const cv = req.file;
+
+  if (!cv) {
+    return res.status(400).json({
+      success: false,
+      message: "CV file is required. Please upload your CV and try again.",
+    });
+  }
 
   const transporter = nodemailer.createTransport({
     service: "gmail",
@@ -57,7 +70,7 @@ export const sendJobApplicationCairo = async (req, res, next) => {
   try {
     const mailOptions = {
       from: process.env.GMAIL_USER,
-      to: process.env.RECIPIENT_EMAIL_JOB_CAIRO, // Using the specific recipient email
+      to: process.env.RECIPIENT_EMAIL_JOB_CAIRO,
       subject: `Job Application for ${position}`,
       text: `Name: ${name}\nEmail: ${email}\nPhone: ${phone}\nPosition: ${position}\n`,
       attachments: [
@@ -70,9 +83,7 @@ export const sendJobApplicationCairo = async (req, res, next) => {
     };
 
     await transporter.sendMail(mailOptions);
-    res
-      .status(200)
-      .json({ success: true, message: "Application sent successfully!" });
+    res.status(200).json({ success: true, message: "Application sent successfully!" });
   } catch (error) {
     console.error("Error sending email:", error);
     res.status(500).json({
