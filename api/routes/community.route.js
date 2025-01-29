@@ -9,7 +9,8 @@ import {
   getCommunities,
   getFeaturedCommunity,
   getCommunitiesByDeveloper,
-  searchCommunitiesByAltText
+  searchCommunitiesByAltText,
+   getAllCommunitiesByDeveloper
 } from "../controllers/community.controller.js";
 
 const router = express.Router();
@@ -21,6 +22,7 @@ router.get("/get/:id", getCommunity);
 router.get("/communities", getCommunities);
 router.get("/featured-communities", getFeaturedCommunity);
 router.get("/communities/developer/:developerId", getCommunitiesByDeveloper);
+router.get("/communities/:developerId",  getAllCommunitiesByDeveloper);
 router.get("/search-by-alt-text", searchCommunitiesByAltText);
 
 

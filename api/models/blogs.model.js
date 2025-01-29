@@ -15,6 +15,7 @@ const PostSchema = new Schema(
     isPublished: { type: Boolean, required: true },
      coverAltText: { type: String }, // Separate field for cover image alt text
     imageAltTexts: { type: Map, of: String }, // Store alt texts for content images
+	pageMetaTitle: {type:String}
   },
   {
     timestamps: true,

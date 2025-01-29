@@ -13,6 +13,7 @@
         required: true, // Make name required
     },
 email: {type: String, required: false},
+pageMetaTitle: {type:String},
 phoneNumber: {type: String, required: false},
 numberOfListings: {type:Number},
 isPublished: { type: Boolean },

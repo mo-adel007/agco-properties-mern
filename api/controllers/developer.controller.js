@@ -35,6 +35,9 @@ export const getDeveloper = async (req, res) => {
     if (developerObj.description) {
       developerObj.description = formatRichText(developerObj.description);
     }
+// Generate meta title
+    const metaTitle = `AGCO PROPERTIES | ${developerObj.name} - Leading Developer in Real Estate`;
+    developerObj.metaTitle = metaTitle;
     res.status(200).json(developerObj);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching developer', error: error.message });

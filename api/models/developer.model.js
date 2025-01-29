@@ -6,6 +6,7 @@ const developerSchema = new mongoose.Schema({
   description: { type: String, required: false },
 summary: {type: String, required: false},
 slug: {type:String, required: false, unique:true},
+pageMetaTitle: {type:String},
 });
 developerSchema.pre("save", function (next) {
   if (!this.slug && this.name) {

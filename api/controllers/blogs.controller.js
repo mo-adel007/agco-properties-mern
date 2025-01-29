@@ -153,8 +153,11 @@ export const getPost = async (req, res) => {
     const postObject = post.toObject();
     postObject.imageAltTexts = post.imageAltTexts ? Object.fromEntries(post.imageAltTexts) : {};
 
+// Generate meta title
+    const metaTitle = `AGCO PROPERTIES | ${postObject.title}`;
+    postObject.metaTitle = metaTitle;
     console.log("Fetched imageAltTexts:", postObject.imageAltTexts); // Debug log
-
+   
     res.status(200).json(postObject);
   } catch (error) {
     console.error("Error fetching blog post:", error);

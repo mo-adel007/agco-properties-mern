@@ -1,8 +1,9 @@
 // src/controllers/community.controller.js
 import Community from "../models/community.model.js";
 import Developer from "../models/developer.model.js";
+import Project from '../models/project.model.js'; // Adjust the import based on your project structure
 import { errorHandler } from "../utils/error.js";
-
+import mongoose from 'mongoose';
 export const createCommunity = async (req, res, next) => {
   try {
     const { developers, ...otherData } = req.body;
@@ -138,16 +139,32 @@ export const getCommunitiesByDeveloper = async (req, res) => {
       });
     }
 
-    // Fetch communities associated with the developer
-    const communities = await Community.find({ developers: developerId }).populate(
-      "developers",
-      "name"
-    );
+    // Fetch communities with projects associated with the developer
+    const communitiesWithProjects = await Project.aggregate([
+      { $match: { developer:new mongoose.Types.ObjectId(developerId) } },
+      { $group: { _id: "$community", projectCount: { $sum: 1 } } },
+    ]);
+
+    const communityIds = communitiesWithProjects.map((item) => item._id);
+
+    // Fetch community details using the filtered community IDs
+    const communities = await Community.find({ _id: { $in: communityIds } })
+      .populate("developers", "name")
+      .lean();
+
+    // Map communities to include project counts
+    const communityData = communities.map((community) => {
+      const projectInfo = communitiesWithProjects.find((item) => item._id.equals(community._id));
+      return {
+        ...community,
+        projectCount: projectInfo ? projectInfo.projectCount : 0,
+      };
+    });
 
     return res.status(200).json({
       success: true,
       message: "Communities fetched successfully",
-      data: communities,
+      data: communityData,
     });
   } catch (error) {
     console.error("Error fetching communities:", error.message);
@@ -157,6 +174,31 @@ export const getCommunitiesByDeveloper = async (req, res) => {
     });
   }
 };
+export const getAllCommunitiesByDeveloper = async (req, res, next) => {
+  try {
+    const { developerId } = req.params; // Developer ID from route
+    console.log(`Fetching communities for developer ID: ${developerId}`);
+
+    // Ensure developerId is an ObjectId
+    if (!mongoose.Types.ObjectId.isValid(developerId)) {
+      return res.status(400).json({ success: false, message: "Invalid developer ID." });
+    }
+
+    // Query communities where the provided developer ID is in the developers array
+    const communities = await Community.find({ developers: developerId }).select(
+      "_id name imageUrls description address featured slug"
+    );
+
+    console.log("Filtered Communities:", communities);
+
+    // Respond with the filtered communities
+    res.status(200).json({ success: true, data: communities });
+  } catch (error) {
+    console.error("Error fetching communities assigned to the developer:", error);
+    next(error);
+  }
+};
+
 
 export const searchCommunitiesByAltText = async (req, res) => {
   try {
@@ -169,3 +211,4 @@ export const searchCommunitiesByAltText = async (req, res) => {
     res.status(500).json({ message: "Error searching communities", error });
   }
 };
+

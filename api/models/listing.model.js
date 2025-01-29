@@ -44,6 +44,8 @@ unitNumber: {type: String, required:true},
 title: {type:String},
 latitude: {type:Number, required:true },
 longitude: {type:Number, required:true},
+pageMeta: {type:String},
+metaDescritpion: {type: String},
 amenities: {
   parking: { type: Boolean, default: false},
   furnished: { type: Boolean, default: false }, 

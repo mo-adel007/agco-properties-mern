@@ -27,6 +27,8 @@ const projectSchema = new mongoose.Schema({
    downPaymentPercentage: {type: String, required: false},
       yearsOfInstallments: {type: String, required: false},
 startingPrice: {type:Number, required: false},
+pageTitle: {type:String},
+metaDescription: {type: String},
 amenities: {
   parking: { type: Boolean, default: false},
   furnished: { type: Boolean, default: false },

@@ -13,25 +13,26 @@ export const createProject = async (req, res, next) => {
   try {
     const { community: communityId, developer: developerId, ...projectData } = req.body;
 
-    // Verify the community exists
+    // Check for existing project with same slug in the community
+    const existingProject = await Project.findOne({ community: communityId, name:projectData.name });
+    if (existingProject) {
+      return res.status(400).json({
+        success: false,
+        message: "A project with the same name already exists in this community."
+      });
+    }
+
+    // Validate and check community and developer existence
     const community = await Community.findById(communityId);
     if (!community) {
-      return res.status(404).json({
-        success: false,
-        message: "Community not found",
-      });
+      return res.status(404).json({ success: false, message: "Community not found" });
     }
 
-    // Verify the developer exists
     const developer = await Developer.findById(developerId);
     if (!developer) {
-      return res.status(404).json({
-        success: false,
-        message: "Developer not found",
-      });
+      return res.status(404).json({ success: false, message: "Developer not found" });
     }
 
-    // Ensure the developer is associated with the community
     if (!community.developers.includes(developerId)) {
       return res.status(400).json({
         success: false,
@@ -39,39 +40,22 @@ export const createProject = async (req, res, next) => {
       });
     }
 
-    // Format description using the rich text formatter
+    // Format description if present
     if (projectData.description) {
       projectData.description = formatRichText(projectData.description);
     }
 
-    // Create the project
-    const project = await Project.create({
-      ...projectData,
-      community: communityId,
-      developer: developerId,
-    });
-
-    // Populate the response
+    // Create and populate the new project
+    const project = await Project.create({ ...projectData, community: communityId, developer: developerId });
     const populatedProject = await Project.findById(project._id)
       .populate("community", "name")
       .populate("developer", "name logoUrl");
 
-    return res.status(201).json({
-      success: true,
-      data: populatedProject,
-    });
+    return res.status(201).json({ success: true, data: populatedProject });
   } catch (error) {
-    // Handle duplicate slug error
-    if (error.code === 11000 && error.keyPattern?.slug) {
-      return res.status(400).json({
-        success: false,
-        message: "A project with the same name already exists in this community.",
-      });
-    }
     next(error);
   }
 };
-
 export const updateProject = async (req, res, next) => {
   try {
     const { community: newCommunityId, developer: newDeveloperId, ...updateData } = req.body;
@@ -174,6 +158,11 @@ export const getProject = async (req, res, next) => {
     if (projectObj.description) {
       projectObj.description = formatRichText(projectObj.description);
     }
+
+let metaTitle = `AGCO PROPERTIES | ${projectObj.community.name} ${projectObj.name}`;
+let metaDescritpion = `AGCO PROPERTIES | ${projectObj.description}`;
+projectObj.pageTitle = metaTitle;
+projectObj.metaDescription = metaDescritpion;
 
     // Format amenities
     const trueAmenities = Object.entries(projectObj.amenities || {})

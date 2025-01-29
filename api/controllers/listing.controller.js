@@ -15,25 +15,33 @@ function convertCamelCaseToWords(camelCaseString) {
 
 export const createListing = async (req, res, next) => {
   try {
-    const { project, community, agent,name } = req.body;
-    const slug = name.toLowerCase()
-    .replace(/\|/g, '-') // Replace pipe characters with hyphens
-    .replace(/[^\w\s-]/g, '') // Remove other special characters
-    .replace(/\s+/g, '-') // Replace spaces with hyphens
-    .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
-    .trim(); 
-    // Validate ObjectId
+    const { project, community, agent, name } = req.body;
+
+    // Generate slug from name
+    const slug = name
+      .toLowerCase()
+      .replace(/\|/g, '-')
+      .replace(/[^\w\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .trim();
+
+    // Check for existing slug
+    const existingListing = await Listing.findOne({ slug });
+    if (existingListing) {
+      return res.status(400).json({ message: "Listing with this slug already exists" });
+    }
+
+    // Validate ObjectId for project, community, and agent
     if (
       !mongoose.Types.ObjectId.isValid(project) ||
       !mongoose.Types.ObjectId.isValid(community) ||
       !mongoose.Types.ObjectId.isValid(agent)
     ) {
-      return res
-        .status(400)
-        .json({ message: "Invalid project, community,developer or agent ID" });
+      return res.status(400).json({ message: "Invalid project, community, or agent ID" });
     }
 
-    // Optionally, you can check if the project, community, and agent exist in their respective collections before proceeding.
+    // Check if related entities exist
     const [projectExists, communityExists, agentExists] = await Promise.all([
       Project.findById(project),
       Community.findById(community),
@@ -41,23 +49,14 @@ export const createListing = async (req, res, next) => {
     ]);
 
     if (!projectExists || !communityExists || !agentExists) {
-      return res
-        .status(404)
-        .json({ message: "Project, community,developer or agent not found" });
+      return res.status(404).json({ message: "Project, community, or agent not found" });
     }
 
-    // Create new listing
-    const listing = new Listing({
-      ...req.body,
-	slug,
-    });
-
+    // Create and save the new listing
+    const listing = new Listing({ ...req.body, slug });
     await listing.save();
 
-    return res.status(201).json({
-      message: "Listing created successfully",
-      listing,
-    });
+    return res.status(201).json({ message: "Listing created successfully", listing });
   } catch (error) {
     console.error("Error creating listing:", error);
     next(errorHandler(500, "An error occurred while creating the listing."));
@@ -195,7 +194,11 @@ export const getListingBySlug = async (req, res, next) => {
     if (listing.description) {
       listing.description = formatRichText(listing.description);
     }
-    
+    // Generate meta title
+    const metaTitle = `AGCO PROPERTIES | ${listing.name}`;
+    const metaDescription = `AGCO PROPERTIES | ${listing.description}`
+    listing.pageTitle = metaTitle;
+listing.metaDescription= metaDescription;
     listing.amenities = Object.fromEntries(
       Object.entries(listing.amenities || {})
         .filter(([key, value]) => value)
@@ -248,7 +251,7 @@ export const getPublishedListings = async (req, res, next) => {
         path: "agent",
         select: "name title imageUrls slug"
       })
-      .limit(15);
+
 
     const formattedListings = listings.map(listing => {
       const listingObj = listing.toObject();
@@ -274,21 +277,84 @@ export const getPublishedListings = async (req, res, next) => {
     next(error);
   }
 };
+
+//export const getListingsByStatus = async (req, res, next) => {
+//  try {
+ //   const { status } = req.params;
+  //  let listings = await Listing.find({ status, type: "residential", isPublished: true })
+   //   .populate("project", "name")
+   //   .populate("community", "name")
+   //   .populate({
+   //     path: "agent",
+   //     select: "name title imageUrls slug",
+   //   })
+//	.populate({path:"developer",select:"name logoUrl"})
+//	.limit(10)
+ //     .lean()
+
+ //const listingsWithFormattedData = listings.map(listing => {
+  //    const filteredAmenities = Object.entries(listing.amenities || {})
+   //     .filter(([_, value]) => value === true)
+    //    .reduce((acc, [key]) => {
+    //      acc[key] = true;
+    //      return acc;
+    //    }, {});
+
+    //  return {
+    //    ...listing,
+    //    developerLogo: listing.developer?.logoUrl || null,
+    //    amenities: filteredAmenities
+    //  };
+   // });
+
+    // Get residential categories
+   
+    //res.status(200).json({
+     // listings: listingsWithFormattedData,
+    //});
+ // } catch (error) {
+  //  next(error);
+ // }
+//};
+
+
 export const getListingsByStatus = async (req, res, next) => {
   try {
     const { status } = req.params;
-    let listings = await Listing.find({ status, type: "residential", isPublished: true })
+    const { offset = 0, limit = 15 } = req.query;
+    
+    // Parse pagination parameters
+    const parsedOffset = parseInt(offset) || 0;
+    const parsedLimit = parseInt(limit) || 15;
+
+    // Get total count for pagination
+    const totalListings = await Listing.countDocuments({ 
+      status, 
+      type: "residential", 
+      isPublished: true 
+    });
+
+    // Fetch listings with pagination
+    let listings = await Listing.find({ 
+      status, 
+      type: "residential", 
+      isPublished: true 
+    })
       .populate("project", "name")
       .populate("community", "name")
       .populate({
         path: "agent",
         select: "name title imageUrls slug",
       })
-	.populate({path:"developer",select:"name logoUrl"})
-      .lean()
-      .limit(15);
+      .populate({
+        path: "developer",
+        select: "name logoUrl"
+      })
+      .skip(parsedOffset)
+      .limit(parsedLimit)
+      .lean();
 
- const listingsWithFormattedData = listings.map(listing => {
+    const listingsWithFormattedData = listings.map(listing => {
       const filteredAmenities = Object.entries(listing.amenities || {})
         .filter(([_, value]) => value === true)
         .reduce((acc, [key]) => {
@@ -303,15 +369,19 @@ export const getListingsByStatus = async (req, res, next) => {
       };
     });
 
-    // Get residential categories
-   
+    // Calculate if there are more listings
+    const hasMore = parsedOffset + listings.length < totalListings;
+
     res.status(200).json({
       listings: listingsWithFormattedData,
+      hasMore,
+      total: totalListings
     });
   } catch (error) {
     next(error);
   }
 };
+
 
 export const getListingsByType = async (req, res, next) => {
   try {
@@ -330,9 +400,7 @@ export const getListingsByType = async (req, res, next) => {
       .populate({path:"developer",
        select:"name logoUrl"})
       .lean()
-      .limit(15);
-
-    // Fetch developer information for all listings
+//     Fetch developer information for all listings
      const listingsWithFormattedData = listings.map(listing => {
       const filteredAmenities = Object.entries(listing.amenities || {})
         .filter(([_, value]) => value === true)
@@ -369,7 +437,7 @@ export const getFeaturedListings = async (req, res, next) => {
  .populate({
         path: "agent", // Include the agent information
         select: "name title imageUrls slug", // Select the agent fields you want to include
-      }).limit(15);
+      })
   featuredListings = featuredListings.map(listing => {
       let listingObj = listing.toObject();
       listingObj.amenities = Object.fromEntries(
@@ -389,7 +457,7 @@ export const getListingsByCategory = async (req, res, next) => {
     let listings = await Listing.find({ category, isPublished: true }) .populate({
         path: "agent", // Include the agent information
         select: "name title imageUrls slug", // Select the agent fields you want to include
-      }).limit(15);
+      })
  listings = listings.map(listing => {
       let listingObj = listing.toObject();
       listingObj.amenities = Object.fromEntries(
@@ -409,7 +477,7 @@ export const getListingByProject = async (req, res, next) => {
     // Case-insensitive search for the project name
     const project = await Project.findOne({
       name: new RegExp(`^${name}$`, "i"),
-    }).limit(15);
+    })
     console.log("Project found:", project); // Debug log
 
     if (!project) {
@@ -425,7 +493,7 @@ export const getListingByProject = async (req, res, next) => {
  .populate({
         path: "agent", // Include the agent information
         select: "name title imageUrls slug", // Select the agent fields you want to include
-      }).limit(15);
+      })
     console.log("Listings found:", listings); // Debug log
 
     if (listings.length === 0) {
@@ -485,7 +553,7 @@ export const getListingsByQuery = async (req, res, next) => {
         select: "name title imageUrls slug",
       })
       .lean()
-      .limit(15);
+      
 
     // Fetch developer information for all listings
     const listingsWithDeveloperInfo = await Promise.all(
@@ -562,7 +630,6 @@ export const getListingsByQueryParams = async (req, res) => {
         select: "name logoUrl slug" 
       })
       .lean()
-      .limit(15);
 
     const listingsWithFormattedData = listings.map(listing => ({
       id: listing._id,
@@ -665,7 +732,6 @@ export const getListingsByAdvancedSearch = async (req, res, next) => {
       })
 	.populate({path:"developer",select:"name logoUrl slug"})
       .lean()
-      .limit(15);
 
 
        const listingsWithFormattedData = listings.map(listing => ({
@@ -754,7 +820,7 @@ export const getSuccessfulListings = async (req, res) => {
  .populate({
         path: "agent", // Include the agent information
         select: "name title imageUrls slug", // Select the agent fields you want to include
-      }).limit(15);
+      })
  successfulListings = successfulListings.map(listing => {
       const listingObj = listing.toObject();
       listingObj.amenities = Object.fromEntries(
@@ -802,7 +868,7 @@ export const getListingsByAgent = async (req, res) => {
     const listings = await Listing.find({ 
       agent: agentId, 
       isPublished: true 
-    }).lean().limit(15);
+    }).lean()
 
     // Fetch developer information for all listings
     const listingsWithDeveloperInfo = await Promise.all(
@@ -856,7 +922,6 @@ export const getSimilarListings = async (req, res) => {
       isPublished: true, // Optionally include this to only return published listings
       _id: { $ne: currentListingId }, // Exclude the current listing
     }).populate({path:"agent",select:"name imageUrls slug"})
-.limit(12);
 
     // Check if any listings are found
     if (listings.length === 0) {
@@ -895,7 +960,7 @@ export const getListingsByDeveloper = async (req, res) => {
     }).populate('community project').populate({
         path: "agent", // Include the agent information
         select: "name title imageUrls slug", // Select the agent fields you want to include
-      }).limit(15);
+      })
 
     if (!listings.length) {
       return res

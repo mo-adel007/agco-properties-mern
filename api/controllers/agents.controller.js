@@ -128,11 +128,18 @@ export const getAgentBySlug = async (req, res) => {
     if (!agent) {
       return res.status(404).json({ message: "Agent not found" });
     }
- const listingsCount = await Listing.countDocuments({ agent: agent._id });
+
+    // Count the number of listings associated with the agent
+    const listingsCount = await Listing.countDocuments({ agent: agent._id });
 
     // Add the listings count to the agent object
     agent.numberOfListings = listingsCount;
-    res.status(200).json(agent);
+
+    // Generate meta title using the agent's name, title, and number of listings
+    const metaTitle = `AGCO Properties | ${agent.name} - ${agent.title}`;
+
+    // Send the response with the meta title included
+    res.status(200).json({ ...agent.toObject(), metaTitle });
   } catch (error) {
     res.status(500).json({ message: "Error fetching agent", error: error.message });
   }

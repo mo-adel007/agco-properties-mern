@@ -51,8 +51,18 @@ const app = express();
   //credentials: true, // Allow credentials (cookies, authorization headers, TLS client certificates)
   //optionsSuccessStatus: 200, // For legacy browsers
 //};
+const allowedOrigins = ["https://www.agcoproperties.com", "https://agcoproperties.com", "https://dashboard.agcoproperties.com"];
 const corsOptions = {
-  origin: true, // Your frontend URL
+ // origin: function (origin, callback) {
+  //  if (!origin) return callback(null, true);
+   // if (allowedOrigins.includes(origin)) {
+    //  return callback(null, true);
+   // } else {
+     // const msg = "The CORS policy for this site does not allow access from the specified origin.";
+     // return callback(new Error(msg), false);
+   // }
+  //},
+origin: true,
   credentials: true, // Allow credentials (cookies, authorization headers, TLS client certificates)
   optionsSuccessStatus: 200, // Some legacy browsers (IE11, various SmartTVs) choke on 204
 };
@@ -61,6 +71,21 @@ app.use(cors(corsOptions));
 
 // Middleware
 app.use(helmet());
+app.use(helmet.hsts({ maxAge: 31536000, includeSubDomains: true, preload: true }));
+app.use(helmet.contentSecurityPolicy({
+  directives: {
+    defaultSrc: ["'self'"],
+    scriptSrc: ["'self'", "https://trusted-cdn.com"],
+    styleSrc: ["'self'", "https://trusted-cdn.com"],
+    imgSrc: ["'self'", "data:", "https://trusted-cdn.com"],
+    fontSrc: ["'self'", "https://trusted-cdn.com"],
+    connectSrc: ["'self'", "https://api.agcoproperties.com"],
+    objectSrc: ["'none'"],
+    upgradeInsecureRequests: [],
+  },
+}));
+app.use(helmet.noSniff());
+app.use(helmet.frameguard({ action: "deny" }));
 app.use(express.json());
 app.use(cookieParser());
 app.use(bodyParser.json({ limit: "10mb" })); // You can increase the limit as needed
@@ -68,20 +93,12 @@ app.use(bodyParser.urlencoded({ limit: "10mb", extended: true }));
 app.use(xss());
 app.use(mongoSanitize());
 app.use(hpp());
-app.use(
-  helmet.contentSecurityPolicy({
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "trusted-cdn.com"],
-      styleSrc: ["'self'", "trusted-cdn.com"],
-      imgSrc: ["'self'", "data:", "trusted-cdn.com"],
-      connectSrc: ["'self'"],
-      fontSrc: ["'self'", "trusted-cdn.com"],
-      objectSrc: ["'none'"],
-      upgradeInsecureRequests: [],
-    },
-  })
-)
+app.use((req, res, next) => {
+  if (req.protocol !== "https" && process.env.NODE_ENV === "production") {
+    return res.redirect(`https://${req.headers.host}${req.url}`);
+  }
+  next();
+});
 
 // Database Connection
 
@@ -130,7 +147,4 @@ app.use((err, req, res, next) => {
     message,
   });
 });
-//const sslOptions = {
- // key: fs.readFileSync(path.resolve('./cert/server.key')),
- // cert: fs.readFileSync(path.resolve('./cert/server.cert')),
-//};
+
