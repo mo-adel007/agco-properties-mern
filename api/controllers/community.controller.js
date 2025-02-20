@@ -95,6 +95,61 @@ export const deleteCommunity = async (req, res, next) => {
   }
 };
 
+export const getCommunityBySlug = async (req, res, next) => {
+  try {
+    const { slug } = req.params;
+
+    if (!slug) {
+      return res.status(400).json({
+        success: false,
+        message: "Slug parameter is required"
+      });
+    }
+
+    console.log("Slug received:", slug);
+
+    // Find the community document using the slug (ensure slug is a string)
+    const community = await Community.findOne({ slug: String(slug) })
+      .populate("developers", "name logoUrl description")
+      .exec();
+
+    if (!community) {
+      return res.status(404).json({
+        success: false,
+        message: "Community not found"
+      });
+    }
+
+    // Convert Mongoose document to plain object
+    const communityObject = community.toObject();
+
+    // Add meta tags using proper template literals
+    communityObject.meta = {
+      title: `AGCO Properties | ${communityObject.name}`,
+      description: `Explore ${communityObject.name} in UAE. ${communityObject.name}, Discover exclusive properties and amenities in this prime location.`
+    };
+
+    // Transform imageUrls
+    communityObject.images = communityObject.imageUrls.map(url => ({
+      url,
+      alt: communityObject.altText || `${communityObject.name} community image`
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: communityObject
+    });
+
+  } catch (error) {
+    console.error("Error fetching community by slug:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};
+
 
 export const getCommunity = async (req, res, next) => {
   try {

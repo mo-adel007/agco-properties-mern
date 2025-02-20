@@ -14,7 +14,7 @@ const pages = [
   //   description: "View detailed information about properties listed on AGCO Properties.",
   // },
   {
-    slug: "sale",
+    slug: "buy",
     title: "Buy Property | AGCO Properties",
     description: "Explore properties available for purchase with AGCO Properties.",
   },
@@ -37,6 +37,11 @@ const pages = [
     slug: "services",
     title: "Our Services | AGCO Properties",
     description: "Learn about the services offered by AGCO Properties to assist with your real estate needs.",
+  },
+  {
+	slug:"communities",
+	title: "Popular Areas | AGCO Properties",
+	description:"Discover our areas of interest in Dubai",
   },
   {
     slug: "price-indicator",

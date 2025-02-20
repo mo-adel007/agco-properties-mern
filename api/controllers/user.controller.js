@@ -38,7 +38,7 @@ export const updateUser = async (req, res, next) => {
 export const getUserListings = async (req, res, next) => {
   try {
     // Allow listings if the user is viewing their own or if the user is a Super Admin
-    if (req.user.id === req.params.id || req.user.role === 'Super Admin') {
+//    if (req.user.id === req.params.id || req.user.role === 'Super Admin') {
       const listings = await Listing.find({ userRef: req.params.id })
     .populate('userRef', 'username')
       .populate("project", "name")
@@ -48,9 +48,9 @@ export const getUserListings = async (req, res, next) => {
         select: "name", // Select the agent fields you want to include
       });
       res.status(200).json(listings);
-    } else {
-      return next(errorHandler(401, "You can only view your own listings or have administrator privileges!"));
-    }
+  //  } else {
+    //  return next(errorHandler(401, "You can only view your own listings or have administrator privileges!"));
+   // }
   } catch (error) {
     next(error);
   }

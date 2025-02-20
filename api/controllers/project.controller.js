@@ -140,7 +140,7 @@ export const getProject = async (req, res, next) => {
     const { slug } = req.params;
     let project = await Project.findOne({ slug })
 	.populate("community", "name")
-	.populate('developer','name logoUrl slug')
+	.populate('developer','name logoUrl slug description')
 
     if (!project) {
       return next(errorHandler(404, "Project not found!"));
@@ -188,8 +188,18 @@ projectObj.metaDescription = metaDescritpion;
 
 export const getProjects = async (req, res, next) => {
   try {
-    const projects = await Project.find().populate("community", "name");
-  const projectsWithFilteredAmenities = projects.map(project => {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 30;
+    const skip = (page - 1) * limit;
+
+    const totalProjects = await Project.countDocuments();
+    
+    const projects = await Project.find()
+      .populate("community", "name")
+      .skip(skip)
+      .limit(limit);
+
+    const projectsWithFilteredAmenities = projects.map(project => {
       const falseAmenities = Object.keys(project.amenities).reduce((acc, key) => {
         if (project.amenities[key] === true) {
           acc[key] = true;
@@ -198,7 +208,13 @@ export const getProjects = async (req, res, next) => {
       }, {});
       return { ...project.toObject(), amenities: falseAmenities };
     });
-    res.status(200).json(projects);
+
+    res.status(200).json({
+      projects: projectsWithFilteredAmenities,
+      currentPage: page,
+      totalPages: Math.ceil(totalProjects / limit),
+      hasMore: skip + projects.length < totalProjects
+    });
   } catch (error) {
     next(error);
   }
@@ -211,7 +227,6 @@ export const getFeaturedProject = async (req, res, next) => {
       .populate("community", "name")
       .populate("developer", "name logoUrl")
 	.lean()
-      .limit(15);
 
  const projectsWithInfo = featuredProjects.map(project => ({
       ...project,
@@ -233,15 +248,19 @@ export const getFeaturedProject = async (req, res, next) => {
 export const getProjectByType = async (req, res, next) => {
   try {
     const { status, type } = req.params;
-    let projects = await Project.find({ 
-      status: { $in: ["ready", "off plan"] },
+    const { limit = 10, offset = 0 } = req.query; // Default to 10 items per request
+
+    let projects = await Project.find({
+      status: { $in: ["off plan"] },
       type: "residential"
     })
     .populate("community", "name")
-	.populate("developer","name logoUrl")
-    .lean()
-    .limit(15);
- const projectsWithInfo = projects.map(project => ({
+    .populate("developer", "name logoUrl")
+    .skip(parseInt(offset))
+    .limit(parseInt(limit))
+    .lean();
+
+    const projectsWithInfo = projects.map(project => ({
       ...project,
       developerLogo: project.developer?.logoUrl || null,
       amenities: Object.entries(project.amenities || {})
@@ -252,14 +271,20 @@ export const getProjectByType = async (req, res, next) => {
         }, {})
     }));
 
+    const total = await Project.countDocuments({
+      status: { $in: ["off plan"] },
+      type: "residential"
+    });
 
-    res.status(200).json(projectsWithInfo);
+    res.status(200).json({ projects: projectsWithInfo, total });
   } catch (error) {
     console.error("Error fetching projects by type:", error);
     next(error);
   }
 };
-    
+
+
+// this one is for the dashboards not for the website only for the developer page
 export const getProjectByCommunity = async (req, res, next) => {
   try {
     const { community, developer } = req.params; // Add developer parameter
@@ -298,6 +323,43 @@ export const getProjectByCommunity = async (req, res, next) => {
   }
 };
 
+// this is for the community page 
+export const getProjectsByCommunity = async (req, res, next) => {
+  try {
+    const { community } = req.params; // Here, 'community' is the community slug
+
+    // Find the community document by its slug
+    const communityDoc = await Community.findOne({ slug: community });
+    if (!communityDoc) {
+      return res.status(404).json({
+        success: false,
+        message: "Community not found",
+      });
+    }
+
+    // Build the query to fetch projects associated with the community's _id
+    const query = { community: communityDoc._id };
+
+    // Find projects matching the query and populate the community and developer fields as needed
+    const projects = await Project.find(query)
+      .populate("community", "name slug")
+      .populate("developer", "name logoUrl")
+      .exec();
+
+    res.status(200).json({
+      success: true,
+      data: projects,
+    });
+  } catch (error) {
+    console.error("Error fetching projects by community:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};
+
 export const getProjectsBySlug = async (req, res, next) => {
   try {
     const { communitySlug, developerSlug } = req.params;
@@ -330,7 +392,6 @@ export const getProjectsBySlug = async (req, res, next) => {
       path: 'developer',
       select: 'name logoUrl slug description'
     })
-    .limit(15);
 
     if (projects.length === 0) {
       return res.status(404).json({
@@ -338,21 +399,21 @@ export const getProjectsBySlug = async (req, res, next) => {
         message: 'No projects found for this community and developer combination'
       });
     }
-
-    const projectsWithInfo = projects.map(project => {
+const projectsWithInfo = projects.map(project => {
       const projectObj = project.toObject();
-      const formattedAmenities = projectObj.amenities ? 
+      const formattedAmenities = projectObj.amenities ?
         Object.entries(projectObj.amenities)
           .filter(([_, value]) => value === true)
           .reduce((acc, [key]) => {
             acc[key] = true;
             return acc;
-          }, {}) 
+          }, {})
         : {};
 
       return {
         ...projectObj,
         developerLogo: projectObj.developer?.logoUrl || null,
+	developerDescription: projectObj.developer?.description || null, // Add developer description
         amenities: formattedAmenities
       };
     });
@@ -366,47 +427,35 @@ export const getProjectsBySlug = async (req, res, next) => {
     next(error);
   }
 };
-//export const getProjectByDeveloper = async (req, res, next) => {
- // try {
-    //const { developer } = req.params;
-    //let projects = await Project.find({ developer })
-      //.populate("community", "name")
-     // .limit(15);
+export const getProjectByDeveloper = async (req, res, next) => {
+  try {
+    const { developer } = req.params;
 
-   // const projectsWithInfo = await Promise.all(
-      //projects.map(async (project) => {
-       // const projectObj = project.toObject();
-      //  const developerInfo = await Developer.findOne(
-    //      { name: projectObj.developer },
-  //        'name logoUrl'
-//        ).lean();
+    // Fetch only the project names for the specified developer
+    const projects = await Project.find({ developer })
+      .limit(15)
+      .select('name'); // Select only the project name
 
-      //  const formattedAmenities = Object.entries(projectObj.amenities || {})
-       //   .filter(([_, value]) => value === true)
-      //    .reduce((acc, [key]) => {
-     //       acc[convertCamelCaseToWords(key)] = true;
-    //        return acc;
-  //        }, {});
+    // Extract project names from the fetched projects
+    const projectNames = projects.map(project => project.name);
 
-//        return {
-          //...projectObj,
-          //developerLogo: developerInfo?.logoUrl || null,
-        //  amenities: formattedAmenities
-      //  };
-    //  })
-   // );
-
-   // res.status(200).json(projectsWithInfo);
-  //} catch (error) {
-   // console.error("Error fetching projects by developer:", error);
-  //  next(error);
- // }
-//};
-
+    // Send the project names in the response
+    res.status(200).json(projectNames);
+  } catch (error) {
+    console.error("Error fetching project names by developer:", error);
+    next(error);
+  }
+};
 
 export const getProjectsByQuery = async (req, res, next) => {
   try {
-    const { location, deliveryDate, typeOfUnit } = req.query;
+    const { location, deliveryDate, typeOfUnit, page = 1, limit = 15 } = req.query;
+    
+    // Parse pagination parameters
+    const parsedPage = parseInt(page) || 1;
+    const parsedLimit = parseInt(limit) || 15;
+    const skip = (parsedPage - 1) * parsedLimit;
+
     let filter = {};
 
     if (typeOfUnit) filter.typeOfUnit = { $in: typeOfUnit.split(",") };
@@ -419,13 +468,18 @@ export const getProjectsByQuery = async (req, res, next) => {
     }
     if (location) filter.address = { $regex: location, $options: "i" };
 
-    let projects = await Project.find(filter)
-      .populate("community", "name")
-	.populate("developer","name logoUrl")
-	.lean()
-      .limit(15);
+    // Get total count for pagination
+    const totalProjects = await Project.countDocuments(filter);
 
-        const projectsWithInfo = projects.map(project => ({
+    // Fetch projects with pagination
+    const projects = await Project.find(filter)
+      .populate("community", "name")
+      .populate("developer", "name logoUrl")
+      .skip(skip)
+      .limit(parsedLimit)
+      .lean();
+
+    const projectsWithInfo = projects.map(project => ({
       ...project,
       developerLogo: project.developer?.logoUrl || null,
       amenities: Object.entries(project.amenities || {})
@@ -436,7 +490,23 @@ export const getProjectsByQuery = async (req, res, next) => {
         }, {})
     }));
 
-    res.status(200).json(projectsWithInfo);
+    // Calculate pagination metadata
+    const totalPages = Math.ceil(totalProjects / parsedLimit);
+    const hasNextPage = parsedPage < totalPages;
+    const hasPrevPage = parsedPage > 1;
+
+    res.status(200).json({
+      success: true,
+      data: projectsWithInfo,
+      pagination: {
+        currentPage: parsedPage,
+        totalPages,
+        totalItems: totalProjects,
+        itemsPerPage: parsedLimit,
+        hasNextPage,
+        hasPrevPage
+      }
+    });
   } catch (error) {
     next(error);
   }
@@ -444,44 +514,44 @@ export const getProjectsByQuery = async (req, res, next) => {
 
 
 export const getProjectByAdvancedSearch = async (req, res, next) => {
-  try {
-    const { location, typeOfUnit, deliveryDate, status } = req.query;
-    console.log("Received query params:", req.query);
+try {
+const { location, typeOfUnit, deliveryDate, status } = req.query;
+console.log("Received query params:", req.query);
 
-    let filter = {};
 
-    if (typeOfUnit) filter.typeOfUnit = { $in: typeOfUnit.split(",") };
-    if (deliveryDate) {
-      const year = parseInt(deliveryDate);
-      filter.deliveryDate = {
-        $gte: new Date(year, 0, 1),
-        $lte: new Date(year, 11, 31),
-      };
-    }
-    if (location) filter.address = { $regex: location, $options: "i" };
-    if (status) filter.status = { $in: status.split(",") };
+let filter = {};
 
-    let projects = await Project.find(filter)
-      .populate("community", "name")
-	.populate("developer","name logoUrl")
-	.lean()
-      .limit(15);
+if (typeOfUnit) filter.typeOfUnit = { $in: typeOfUnit.split(",") };
+if (deliveryDate) {
+  const year = parseInt(deliveryDate);
+  filter.deliveryDate = {
+    $gte: new Date(year, 0, 1),
+    $lte: new Date(year, 11, 31),
+  };
+}
+if (location) filter.address = { $regex: location, $options: "i" };
+if (status) filter.status = { $in: status.split(",") };
 
- const projectsWithInfo = projects.map(project => ({
-      ...project,
-      developerLogo: project.developer?.logoUrl || null,
-      amenities: Object.entries(project.amenities || {})
-        .filter(([_, value]) => value === true)
-        .reduce((acc, [key]) => {
-          acc[key] = true;
-          return acc;
-        }, {})
-    }));
+let projects = await Project.find(filter)
+  .populate("community", "name")
+    .populate("developer","name logoUrl")
+    .lean()
+const projectsWithInfo = projects.map(project => ({
+...project,
+developerLogo: project.developer?.logoUrl || null,
+amenities: Object.entries(project.amenities || {})
+.filter(([_, value]) => value === true)
+.reduce((acc, [key]) => {
+acc[key] = true;
+return acc;
+}, {})
+}));
 
-    res.status(200).json(projectsWithInfo);
-  } catch (error) {
-    next(error);
-  }
+
+res.status(200).json(projectsWithInfo);
+} catch (error) {
+next(error);
+}
 };
 
 export const searchProjectsByAltText = async (req, res) => {

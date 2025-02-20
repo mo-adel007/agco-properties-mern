@@ -10,7 +10,8 @@ import {
   getFeaturedCommunity,
   getCommunitiesByDeveloper,
   searchCommunitiesByAltText,
-   getAllCommunitiesByDeveloper
+   getAllCommunitiesByDeveloper,
+getCommunityBySlug
 } from "../controllers/community.controller.js";
 
 const router = express.Router();
@@ -19,6 +20,7 @@ router.post("/create", verifyToken, createCommunity);
 router.put("/update/:id", verifyToken, updateCommunity);
 router.delete("/delete/:id", verifyToken, deleteCommunity);
 router.get("/get/:id", getCommunity);
+router.get("/get-community/:slug", getCommunityBySlug);
 router.get("/communities", getCommunities);
 router.get("/featured-communities", getFeaturedCommunity);
 router.get("/communities/developer/:developerId", getCommunitiesByDeveloper);

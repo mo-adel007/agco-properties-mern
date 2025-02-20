@@ -9,6 +9,7 @@ import formatRichText from '../utils/textFormatter.js'
 import {buildPropertyQuery} from '../utils/queryBuilder.js';
 import he from 'he'
 import { getCategoriesByType, getCategoryCount, sortCategoriesByCount } from '../utils/categoryHelpers.js';
+import { residentialCategories, commercialCategories } from '../constants/categories.js';
 function convertCamelCaseToWords(camelCaseString) {
   return camelCaseString.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
 }
@@ -60,6 +61,39 @@ export const createListing = async (req, res, next) => {
   } catch (error) {
     console.error("Error creating listing:", error);
     next(errorHandler(500, "An error occurred while creating the listing."));
+  }
+};
+
+export const checkPermitNumber = async (req, res) => {
+  try {
+    const { permitNumber } = req.body;
+
+    if (!permitNumber) {
+      return res.status(400).json({ message: 'Permit number is required' });
+    }
+
+    // Check if listing with this permit number exists
+    const existingListing = await Listing.findOne({ permitNumber });
+
+    if (existingListing) {
+      return res.status(409).json({ 
+        exists: true,
+        message: 'This DLD/permit number is already associated with an existing listing',
+        listingName: existingListing.Name
+      });
+    }
+
+    return res.status(200).json({
+      exists: false,
+      message: 'Permit number is available'
+    });
+
+  } catch (error) {
+    console.error('Error checking permit number:', error);
+    res.status(500).json({ 
+      message: 'Error checking permit number',
+      error: error.message 
+    });
   }
 };
 
@@ -278,68 +312,34 @@ export const getPublishedListings = async (req, res, next) => {
   }
 };
 
-//export const getListingsByStatus = async (req, res, next) => {
-//  try {
- //   const { status } = req.params;
-  //  let listings = await Listing.find({ status, type: "residential", isPublished: true })
-   //   .populate("project", "name")
-   //   .populate("community", "name")
-   //   .populate({
-   //     path: "agent",
-   //     select: "name title imageUrls slug",
-   //   })
-//	.populate({path:"developer",select:"name logoUrl"})
-//	.limit(10)
- //     .lean()
-
- //const listingsWithFormattedData = listings.map(listing => {
-  //    const filteredAmenities = Object.entries(listing.amenities || {})
-   //     .filter(([_, value]) => value === true)
-    //    .reduce((acc, [key]) => {
-    //      acc[key] = true;
-    //      return acc;
-    //    }, {});
-
-    //  return {
-    //    ...listing,
-    //    developerLogo: listing.developer?.logoUrl || null,
-    //    amenities: filteredAmenities
-    //  };
-   // });
-
-    // Get residential categories
-   
-    //res.status(200).json({
-     // listings: listingsWithFormattedData,
-    //});
- // } catch (error) {
-  //  next(error);
- // }
-//};
-
 
 export const getListingsByStatus = async (req, res, next) => {
   try {
     const { status } = req.params;
-    const { offset = 0, limit = 15 } = req.query;
-    
+    const { page = 1, limit = 15, category } = req.query;
+
     // Parse pagination parameters
-    const parsedOffset = parseInt(offset) || 0;
+    const parsedPage = parseInt(page) || 1;
     const parsedLimit = parseInt(limit) || 15;
+    const offset = (parsedPage - 1) * parsedLimit;
 
-    // Get total count for pagination
-    const totalListings = await Listing.countDocuments({ 
-      status, 
-      type: "residential", 
-      isPublished: true 
-    });
+    // Build query object
+    const query = {
+      status,
+      type: "residential",
+      isPublished: true
+    };
 
-    // Fetch listings with pagination
-    let listings = await Listing.find({ 
-      status, 
-      type: "residential", 
-      isPublished: true 
-    })
+    // Add category filter if provided and valid
+    if (category && residentialCategories.includes(category)) {
+      query.category = category;
+    }
+
+    // Get total count for pagination with category filter
+    const totalListings = await Listing.countDocuments(query);
+
+    // Fetch listings with pagination and category filter
+    let listings = await Listing.find(query)
       .populate("project", "name")
       .populate("community", "name")
       .populate({
@@ -350,10 +350,12 @@ export const getListingsByStatus = async (req, res, next) => {
         path: "developer",
         select: "name logoUrl"
       })
-      .skip(parsedOffset)
+      .sort({ createdAt: -1 }) // Sort by newest first
+      .skip(offset)
       .limit(parsedLimit)
       .lean();
 
+    // Format listings data
     const listingsWithFormattedData = listings.map(listing => {
       const filteredAmenities = Object.entries(listing.amenities || {})
         .filter(([_, value]) => value === true)
@@ -369,39 +371,70 @@ export const getListingsByStatus = async (req, res, next) => {
       };
     });
 
-    // Calculate if there are more listings
-    const hasMore = parsedOffset + listings.length < totalListings;
+    // Calculate pagination metadata
+    const totalPages = Math.ceil(totalListings / parsedLimit);
+    const hasNextPage = parsedPage < totalPages;
+    const hasPrevPage = parsedPage > 1;
 
     res.status(200).json({
       listings: listingsWithFormattedData,
-      hasMore,
-      total: totalListings
+      pagination: {
+        currentPage: parsedPage,
+        totalPages,
+        totalItems: totalListings,
+        itemsPerPage: parsedLimit,
+        hasNextPage,
+        hasPrevPage
+      }
     });
   } catch (error) {
     next(error);
   }
 };
 
-
 export const getListingsByType = async (req, res, next) => {
   try {
     const { type } = req.params;
-    let listings = await Listing.find({
+    const { page = 1, limit = 15, category } = req.query;
+
+    // Parse pagination parameters
+    const parsedPage = parseInt(page) || 1;
+    const parsedLimit = parseInt(limit) || 15;
+    const offset = (parsedPage - 1) * parsedLimit;
+
+    // Build query object
+    const query = {
       type,
-      status: "rent",
       isPublished: true
-    })
+    };
+
+    // Add category filter if provided and valid
+    if (type === 'commercial' && category && commercialCategories.includes(category)) {
+      query.category = category;
+    }
+
+    // Get total count for pagination with category filter
+    const totalListings = await Listing.countDocuments(query);
+
+    // Fetch listings with pagination and category filter
+    let listings = await Listing.find(query)
       .populate("project", "name")
       .populate("community", "name")
       .populate({
         path: "agent",
         select: "name title imageUrls slug",
       })
-      .populate({path:"developer",
-       select:"name logoUrl"})
-      .lean()
-//     Fetch developer information for all listings
-     const listingsWithFormattedData = listings.map(listing => {
+      .populate({
+        path: "developer",
+        select: "name logoUrl",
+      })
+      .sort({ createdAt: -1 }) // Sort by newest first
+      .skip(offset)
+      .limit(parsedLimit)
+      .lean();
+
+    // Format listings data
+    const listingsWithFormattedData = listings.map((listing) => {
       const filteredAmenities = Object.entries(listing.amenities || {})
         .filter(([_, value]) => value === true)
         .reduce((acc, [key]) => {
@@ -412,19 +445,32 @@ export const getListingsByType = async (req, res, next) => {
       return {
         ...listing,
         developerLogo: listing.developer?.logoUrl || null,
-        amenities: filteredAmenities
+        amenities: filteredAmenities,
       };
     });
 
-    
+    // Calculate pagination metadata
+    const totalPages = Math.ceil(totalListings / parsedLimit);
+    const hasNextPage = parsedPage < totalPages;
+    const hasPrevPage = parsedPage > 1;
+
     res.status(200).json({
-      listings:listingsWithFormattedData,
+      listings: listingsWithFormattedData,
+      pagination: {
+        currentPage: parsedPage,
+        totalPages,
+        totalItems: totalListings,
+        itemsPerPage: parsedLimit,
+        hasNextPage,
+        hasPrevPage,
+      },
     });
   } catch (error) {
     console.error("Error fetching listings by type:", error);
     next(error);
   }
 };
+
 
 export const getFeaturedListings = async (req, res, next) => {
   try {
@@ -575,13 +621,19 @@ export const getListingsByQuery = async (req, res, next) => {
     res.status(500).json({ message: "Server error", error });
   }
 };
+
 export const getListingsByQueryParams = async (req, res) => {
   try {
-    const { type, status, category, isPublished } = req.query;
+    const { type, status, category, isPublished, page = 1, limit = 15 } = req.query;
     console.log("Received query params:", req.query);
-    
+
+    // Parse pagination parameters
+    const parsedPage = parseInt(page) || 1;
+    const parsedLimit = parseInt(limit) || 15;
+    const offset = (parsedPage - 1) * parsedLimit;
+
     // Base query
-    let query = { 
+    let query = {
       isPublished: true,
       status: { $ne: "sold" }
     };
@@ -615,21 +667,27 @@ export const getListingsByQueryParams = async (req, res) => {
 
     console.log("Final query:", query);
 
+    // Get total count for pagination
+    const totalListings = await Listing.countDocuments(query);
+
+    // Fetch listings with pagination
     const listings = await Listing.find(query)
-      .populate({ 
-        path: "project", 
-        select: "name latitude longitude" 
+      .populate({
+        path: "project",
+        select: "name latitude longitude"
       })
       .populate("community", "name")
       .populate({
         path: "agent",
         select: "name title imageUrls slug",
       })
-      .populate({ 
-        path: "developer", 
-        select: "name logoUrl slug" 
+      .populate({
+        path: "developer",
+        select: "name logoUrl slug"
       })
-      .lean()
+      .skip(offset)
+      .limit(parsedLimit)
+      .lean();
 
     const listingsWithFormattedData = listings.map(listing => ({
       id: listing._id,
@@ -651,23 +709,39 @@ export const getListingsByQueryParams = async (req, res) => {
       latitude: listing.latitude,
       longitude: listing.longitude,
       slug: listing.slug,
+      description:listing.description,
     }));
+
+    // Calculate pagination metadata
+    const totalPages = Math.ceil(totalListings / parsedLimit);
+    const hasNextPage = parsedPage < totalPages;
+    const hasPrevPage = parsedPage > 1;
 
     return res.status(200).json({
       success: true,
       count: listingsWithFormattedData.length,
-      data: listingsWithFormattedData
+      data: listingsWithFormattedData,
+      pagination: {
+        currentPage: parsedPage,
+        totalPages,
+        totalItems: totalListings,
+        itemsPerPage: parsedLimit,
+        hasNextPage,
+        hasPrevPage
+      }
     });
 
   } catch (error) {
     console.error("Server error:", error);
-    return res.status(500).json({ 
+    return res.status(500).json({
       success: false,
       message: "Server error",
-      error: error.message 
+      error: error.message
     });
   }
 };
+
+
 
 export const getListingsByAdvancedSearch = async (req, res, next) => {
   try {
@@ -763,25 +837,42 @@ export const getStartingPriceByProject = async (req, res, next) => {
     next(error);
   }
 };
+
 export const getAllListings = async (req, res, next) => {
   try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 30;
+    const skip = (page - 1) * limit;
+
+    const totalListings = await Listing.countDocuments({});
+
     let listings = await Listing.find({})
-    .populate('userRef', 'username')
+      .populate('userRef', 'username')
       .populate("project", "name")
       .populate("community", "name")
- .populate({
-        path: "agent", // Include the agent information
-        select: "name title imageUrls slug", // Select the agent fields you want to include
-      });
-      console.log("Listings from DB:", listings); // Log data to check
- listings = listings.map(listing => {
+      .populate({
+        path: "agent",
+        select: "name title imageUrls slug",
+      })
+      .skip(skip)
+      .limit(limit);
+
+    console.log("Listings from DB:", listings);
+
+    listings = listings.map(listing => {
       let listingObj = listing.toObject();
       listingObj.amenities = Object.fromEntries(
         Object.entries(listingObj.amenities || {}).filter(([key, value]) => value)
       );
       return listingObj;
     });
-    res.status(200).json(listings);
+
+    res.status(200).json({
+      listings,
+      currentPage: page,
+      totalPages: Math.ceil(totalListings / limit),
+      hasMore: skip + listings.length < totalListings
+    });
   } catch (error) {
     console.error("Error fetching all listings:", error);
     next(error);

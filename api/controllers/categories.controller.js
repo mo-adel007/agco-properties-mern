@@ -12,6 +12,7 @@ export const getResidentialCategoriesWithCounts = async (req, res, next) => {
 
     const categoriesWithCount = await Promise.all(
       categories.map(async (category) => {
+        // No need to pass { excludeSold: true } anymore.
         const count = await getCategoryCount("residential", status, category);
         return { name: category, count };
       })
@@ -26,16 +27,17 @@ export const getResidentialCategoriesWithCounts = async (req, res, next) => {
   }
 };
 
+
 export const getCommercialCategoriesWithCounts = async (req, res, next) => {
   try {
     const categories = getCategoriesByType("Commercial");
 
     const categoriesWithCount = await Promise.all(
       categories.map(async (category) => {
+        // Count for both "buy" and "rent"
         const countBuy = await getCategoryCount("commercial", "buy", category);
         const countRent = await getCategoryCount("commercial", "rent", category);
         const totalCount = countBuy + countRent;
-
         return { name: category, count: totalCount };
       })
     );

@@ -5,6 +5,7 @@ import {
   deleteDeveloper,
 getDeveloper,
 getAllDevelopers,
+//getDevelopers,
 } from "../controllers/developer.controller.js";
 import { verifyToken } from "../utils/verifyUser.js";
 const router = express.Router();
@@ -18,6 +19,6 @@ router.put("/update/:id",verifyToken, updateDeveloper);
 
 // Delete an existing developer
 router.delete("/delete/:id",verifyToken, deleteDeveloper);
-
+//router.get('/developerNames', getDevelopers);
 export default router;
 

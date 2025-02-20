@@ -20,6 +20,8 @@ export const getAllDevelopers = async (req, res) => {
     });
   }
 };
+
+
 export const getDeveloper = async (req, res) => {
   try {
     const { slug } = req.params;

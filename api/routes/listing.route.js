@@ -25,6 +25,7 @@ getSimilarListings,
 getListingsByDeveloper,
 getListingBySlug,
 filterListings,
+checkPermitNumber
 } from "../controllers/listing.controller.js";
 import { verifyToken } from "../utils/verifyUser.js";
 
@@ -58,4 +59,5 @@ router.get("/similar", getSimilarListings);
 router.get('/developer/:developer/:projectId', getListingsByDeveloper);
 router.get('/:slug', getListingBySlug);
 router.get("/admin/filter",verifyToken, filterListings);
+router.post('/check-permit', checkPermitNumber);
 export default router;

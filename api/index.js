@@ -13,6 +13,7 @@ import agentsRouter from './routes/agents.routes.js';
 import teamRouter from './routes/member.route.js';
 import developerRoutes from "./routes/developer.route.js";
 import categoriesRoutes from './routes/categories.route.js'
+import seoKeywordsRoutes from './routes/seoKeywords.route.js'
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import bodyParser from "body-parser"; 
@@ -131,6 +132,7 @@ app.use('/api/email', emailRouter);
 app.use("/api/team", teamRouter);
 app.use("/api/developers", developerRoutes);
 app.use("/api/categories", categoriesRoutes);
+app.use("/api/seo", seoKeywordsRoutes);
 // Start the server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

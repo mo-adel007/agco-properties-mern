@@ -9,8 +9,9 @@ import {
   getProjects,
   getFeaturedProject,
   getProjectByType,
-//  getProjectByDeveloper,
-  getProjectByCommunity,
+  getProjectByDeveloper,
+  getProjectByCommunity, // for dashboard and developer page
+  getProjectsByCommunity, // for community page
   getProjectsByQuery,
   getProjectByAdvancedSearch,
   searchProjectsByAltText,
@@ -28,8 +29,9 @@ router.get("/get/:slug", getProject);
 router.get("/", getProjects);
 router.get("/featured-projects", getFeaturedProject);
 router.get("/projects/newProjects", getProjectByType);
-//router.get("/projects/developer/:developer", getProjectByDeveloper);
+router.get("/projects/developer/:developer", getProjectByDeveloper);
 router.get("/by-community/:community/:developer", getProjectByCommunity);
+router.get("/by-community/:community", getProjectsByCommunity);
 router.get("/search", getProjectsByQuery);
 router.get("/advanced-search",getProjectByAdvancedSearch);
 router.get("/search-by-alt-text", searchProjectsByAltText);
