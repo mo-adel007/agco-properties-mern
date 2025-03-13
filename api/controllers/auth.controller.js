@@ -23,10 +23,26 @@ export const createUser = async (req, res, next) => {
     next(errorHandler(500, "Error from the function"));
   }
 };
-
 export const signin = async (req, res, next) => {
-  const { email, password } = req.body;
+  const { email, password, captchaToken } = req.body;
+  
   try {
+    // Verify CAPTCHA token
+    if (!captchaToken) {
+      return next(errorHandler(400, "CAPTCHA verification required"));
+    }
+
+    // Verify the CAPTCHA token with Google's API
+    const verificationURL = `https://www.google.com/recaptcha/api/siteverify?secret=${process.env.RECAPTCHA_SECRET_KEY}&response=${captchaToken}`;
+    
+    const recaptchaRes = await fetch(verificationURL, { method: 'POST' });
+    const recaptchaData = await recaptchaRes.json();
+
+    if (!recaptchaData.success) {
+      return next(errorHandler(400, "CAPTCHA verification failed"));
+    }
+
+    // Continue with existing authentication logic
     const validUser = await User.findOne({ email });
     if (!validUser) return next(errorHandler(404, "User not found!"));
 
@@ -38,7 +54,7 @@ export const signin = async (req, res, next) => {
       { id: validUser._id, role: validUser.role },
       process.env.JWT_SECRET,
       {
-        expiresIn: "9h",
+        expiresIn: "48h",
       }
     );
     const { password: pass, ...rest } = validUser._doc;

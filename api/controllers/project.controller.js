@@ -702,3 +702,37 @@ export const getPriceIndicatorData = async (req, res) => {
     });
   }
 };
+
+// Project search controller
+export const searchProjects = async (req, res) => {
+  try {
+    const { query } = req.query;
+    
+    if (!query) {
+      return res.status(400).json({ message: "Search query is required" });
+    }
+
+    // Create a case-insensitive regex pattern that matches words in any order
+    const searchTerms = query.split(' ').filter(term => term.length > 0);
+    const regexPatterns = searchTerms.map(term => `(?=.*${term})`).join('');
+    const searchRegex = new RegExp(`^${regexPatterns}.*$`, 'i');
+
+    const projects = await Project.find({
+      $or: [
+        { name: searchRegex },
+        { name: { $regex: `^${searchTerms[0]}`, $options: 'i' } } // Match projects starting with first word
+      ]
+    })
+    .populate([
+      { path: 'developer', select: 'name' },
+      { path: 'community', select: 'name' }
+    ])
+    .sort({ name: 1 })
+    .limit(20);
+
+    res.status(200).json(projects);
+  } catch (error) {
+    console.error('Error searching projects:', error);
+    res.status(500).json({ message: 'Failed to search projects' });
+  }
+};

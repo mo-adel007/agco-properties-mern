@@ -165,7 +165,7 @@ export const getCommunity = async (req, res, next) => {
 
 export const getCommunities = async (req, res, next) => {
   try {
-    const communities = await Community.find();
+    const communities = await Community.find().select("-developers").lean();
     res.status(200).json(communities);
   } catch (error) {
     next(error);

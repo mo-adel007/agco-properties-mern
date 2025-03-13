@@ -16,10 +16,10 @@ function convertCamelCaseToWords(camelCaseString) {
 
 export const createListing = async (req, res, next) => {
   try {
-    const { project, community, agent, name } = req.body;
+    const { project, community, agent, name,unitNumber } = req.body;
 
     // Generate slug from name
-    const slug = name
+    let slug = name
       .toLowerCase()
       .replace(/\|/g, '-')
       .replace(/[^\w\s-]/g, '')
@@ -27,6 +27,9 @@ export const createListing = async (req, res, next) => {
       .replace(/-+/g, '-')
       .trim();
 
+if (unitNumber) {
+slug = `${slug}-${unitNumber}`
+}
     // Check for existing slug
     const existingListing = await Listing.findOne({ slug });
     if (existingListing) {
@@ -153,7 +156,7 @@ export const publishListing = async (req, res, next) => {
     console.log(`User ID: ${req.user.id}, Listing User ID: ${listing.userRef}, User Role: ${req.user.role}`);
 
     // Allow the listing creator or a Super Admin to publish the listing
-    if (req.user.id === listing.userRef.toString() || req.user.role === "Super Admin") {
+    if (req.user.role === "Admin" || req.user.role === "Super Admin") {
       listing.isPublished = true;
       await listing.save();
       res.status(200).json({ message: "Listing published" });
@@ -187,7 +190,7 @@ export const unpublishListing = async (req, res, next) => {
     console.log(`User ID: ${req.user.id}, Listing User ID: ${listing.userRef}, User Role: ${req.user.role}`);
 
     // Allow the listing creator or a Super Admin to unpublish the listing
-    if (req.user.id === listing.userRef.toString() || req.user.role === "Super Admin") {
+    if (req.user.role === "Admin" || req.user.role === "Super Admin") {
       listing.isPublished = false;
       await listing.save();
       res.status(200).json({ message: "Listing unpublished" });
@@ -995,7 +998,8 @@ export const getListingsByAgent = async (req, res) => {
 // Fetch similar listings based on category, status, and type
 export const getSimilarListings = async (req, res) => {
   try {
-    const { category, status, type,currentListingId } = req.query;
+    const { category, status, type, currentListingId, limit } = req.query;
+    const limitNumber = parseInt(limit) || 10; // Default to 10 if limit isn't provided
 
     // Ensure category, status, and type are provided
     if (!category || !status || !type) {
@@ -1005,33 +1009,36 @@ export const getSimilarListings = async (req, res) => {
       });
     }
 
-    // Find listings that match the criteria
+    // Find listings that match the criteria, excluding the current listing, and limit the results
     let listings = await Listing.find({
       category,
       status,
       type,
-      isPublished: true, // Optionally include this to only return published listings
-      _id: { $ne: currentListingId }, // Exclude the current listing
-    }).populate({path:"agent",select:"name imageUrls slug"})
+      isPublished: true, // Only return published listings
+      _id: { $ne: currentListingId },
+    })
+      .limit(limitNumber)
+      .populate({ path: "agent", select: "name imageUrls slug" });
 
-    // Check if any listings are found
+    // If no listings are found, send 404
     if (listings.length === 0) {
       return res.status(404).json({
         success: false,
         message: "No similar listings found.",
       });
     }
- listings = listings.map(listing => {
+
+    // Convert each listing to a plain object and filter amenities
+    listings = listings.map((listing) => {
       const listingObj = listing.toObject();
       listingObj.amenities = Object.fromEntries(
         Object.entries(listingObj.amenities || {}).filter(([key, value]) => value)
       );
       return listingObj;
     });
-    res.status(200).json({
-      success: true,
-      listings,
-    });
+
+    // Return the array of listing objects directly
+    res.status(200).json(listings);
   } catch (error) {
     console.error("Error fetching similar listings:", error);
     res.status(500).json({
@@ -1040,6 +1047,8 @@ export const getSimilarListings = async (req, res) => {
     });
   }
 };
+
+
 export const getListingsByDeveloper = async (req, res) => {
   const { developer, projectId, listingId } = req.params;
 
@@ -1074,7 +1083,7 @@ export const getListingsByDeveloper = async (req, res) => {
 
 export const filterListings = async (req, res) => {
   try {
-    const { agent, unitNumber, dateCreated } = req.query;
+    const { agent,permitNumber, dateCreated } = req.query;
 
     // Start building the aggregation pipeline
     const filterPipeline = [
@@ -1095,8 +1104,8 @@ export const filterListings = async (req, res) => {
         $match: { "agentDetails.name": { $regex: new RegExp(agent, "i") } },
       });
     }
-    if (unitNumber) {
-      filterPipeline.push({ $match: { unitNumber: Number(unitNumber) } });
+    if (permitNumber) {
+      filterPipeline.push({ $match: { permitNumber: Number(permitNumber) } });
     }
     if (dateCreated) {
       const date = new Date(dateCreated); // Convert string date to Date object
