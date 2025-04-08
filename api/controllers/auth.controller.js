@@ -5,7 +5,15 @@ import jwt from "jsonwebtoken";
 
 export const createUser = async (req, res, next) => {
   const { username, email, password, role } = req.body;
+
   try {
+
+ // First check if email exists
+    const existingEmail = await User.findOne({ email });
+    if (existingEmail) {
+      return res.status(400).json({ error: "Email already exists" });
+    }
+    // If email doesn't exist, create the new user
     const hashedPassword = bcryptjs.hashSync(password, 10);
     const newUser = new User({
       username,
@@ -24,9 +32,12 @@ export const createUser = async (req, res, next) => {
   }
 };
 export const signin = async (req, res, next) => {
-  const { email, password, captchaToken } = req.body;
+  const { email, password, captchaToken, mode } = req.body;
   
   try {
+	const isDevelopment = mode === 'development' && process.env.NODE_ENV === 'development'
+    // Skip CAPTCHA verification in development mode
+	if(!isDevelopment) {
     // Verify CAPTCHA token
     if (!captchaToken) {
       return next(errorHandler(400, "CAPTCHA verification required"));
@@ -41,6 +52,7 @@ export const signin = async (req, res, next) => {
     if (!recaptchaData.success) {
       return next(errorHandler(400, "CAPTCHA verification failed"));
     }
+   }
 
     // Continue with existing authentication logic
     const validUser = await User.findOne({ email });

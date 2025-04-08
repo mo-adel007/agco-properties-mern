@@ -16,49 +16,7 @@ export const createCommunity = async (req, res, next) => {
     next(error);
   }
 };
-//export const updateCommunity = async (req, res, next) => {
-  //try {
-   // const community = await Community.findById(req.params.id);
-    //if (!community) {
-     // return next(errorHandler(404, "Community not found!"));
-   // }    
-    // Update metadata fields if they are present in the request body
-   // if (req.body.altText) community.altText = req.body.altText;
-    //if (req.body.title) community.title = req.body.title;
-    //if (req.body.caption) community.caption = req.body.caption;
-    //if (req.body.description) community.description = req.body.description;
-    //if (req.body.imageUrls) community.imageUrls = req.body.imageUrls;
-    //if (req.body.name) community.name = req.body.name;
-	//if (req.body.address) community.address = req.body.address;
-	//if(req.body.summary) community.summary = req.body.summary
-	//if (typeof req.body.featured !== "undefined") {
-//  community.featured = req.body.featured;
-//}
-//	if(req.body.developer) community.developer = req.body.developer;
-  //  await community.save();
-   // res.status(200).json(community);
-  //} catch (error) {
-   // next(error);
-  //}
-//};
 
-// export const updateCommunity = async (req, res, next) => {
-//   try {
-//     const community = await Community.findById(req.params.id);
-//     if (!community) {
-//       return next(errorHandler(404, 'Community not found!'));
-//     }
-
-//     const updatedCommunity = await Community.findByIdAndUpdate(
-//       req.params.id,
-//       req.body,
-//       { new: true }
-//     );
-//     res.status(200).json(updatedCommunity);
-//   } catch (error) {
-//     next(error);
-//   }
-// };
 export const updateCommunity = async (req, res, next) => {
   try {
     const community = await Community.findById(req.params.id);
@@ -266,4 +224,41 @@ export const searchCommunitiesByAltText = async (req, res) => {
     res.status(500).json({ message: "Error searching communities", error });
   }
 };
+// Add this new controller function
+export const getCommunitiesWithCounts = async (req, res, next) => {
+  try {
+    const { category, type } = req.query;
+    
+    // Get all communities first
+    const communities = await Community.find()
+      .populate('developers', 'name')
+      .lean();
 
+    // For each community, count properties that match criteria
+    const communitiesWithCounts = await Promise.all(
+      communities.map(async (community) => {
+        const propertyCount = await Listing.countDocuments({
+          community: community._id,
+          category,
+          type: type === "commercial" ? "commercial" : "residential",
+          status: type === "commercial" ? { $in: ["buy", "rent"] } : type,
+          isPublished: true
+        });
+
+        return {
+          ...community,
+          propertyCount
+        };
+      })
+    );
+
+    // Filter out communities with no properties
+    const filteredCommunities = communitiesWithCounts.filter(
+      community => community.propertyCount > 0
+    );
+
+    res.status(200).json(filteredCommunities);
+  } catch (error) {
+    next(error);
+  }
+};

@@ -736,3 +736,43 @@ export const searchProjects = async (req, res) => {
     res.status(500).json({ message: 'Failed to search projects' });
   }
 };
+
+// Add this new controller function
+export const getProjectsWithCounts = async (req, res, next) => {
+  try {
+    const { community, category, type } = req.query;
+
+    const projects = await Project.find({
+      community,
+      type: type === "commercial" ? "commercial" : "residential"
+    })
+    .populate('developer', 'name')
+    .lean();
+
+    // Get property counts for each project
+    const projectsWithCounts = await Promise.all(
+      projects.map(async (project) => {
+        const propertyCount = await Listing.countDocuments({
+          project: project._id,
+          category,
+          status: type === "commercial" ? { $in: ["buy", "rent"] } : type,
+          isPublished: true
+        });
+
+        return {
+          ...project,
+          propertyCount
+        };
+      })
+    );
+
+    // Filter out projects with no properties
+    const filteredProjects = projectsWithCounts.filter(
+      project => project.propertyCount > 0
+    );
+
+    res.status(200).json(filteredProjects);
+  } catch (error) {
+    next(error);
+  }
+};
