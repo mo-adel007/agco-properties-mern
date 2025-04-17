@@ -87,8 +87,7 @@ amenities: {
   wifi: { type: Boolean, default: false },
   windowCoverings: { type: Boolean, default: false },
 },
-
-});
+}, { timestamps: true });
 projectSchema.pre("save", async function (next) {
   if (this.isNew || this.isModified("name") || this.isModified("community") || this.isModified("developer")) {
     try {

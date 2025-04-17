@@ -18,7 +18,10 @@ import {
 getRelatedProjects,
 getPriceIndicatorData,
 getProjectsBySlug,
-searchProjects
+searchProjects,
+getProjectsWithCounts,
+getCommunitiesWithProjectCounts,
+projectsByCommunity
 } from "../controllers/project.controller.js";
 
 const router = express.Router();
@@ -32,7 +35,7 @@ router.get("/featured-projects", getFeaturedProject);
 router.get("/projects/newProjects", getProjectByType);
 router.get("/projects/developer/:developer", getProjectByDeveloper);
 router.get("/by-community/:community/:developer", getProjectByCommunity);
-router.get("/by-community/:community", getProjectsByCommunity);
+router.get("/by-community/:community", getProjectsByCommunity); // Get projects by (community communities page)
 router.get("/search", getProjectsByQuery);
 router.get("/advanced-search",getProjectByAdvancedSearch);
 router.get("/search-by-alt-text", searchProjectsByAltText);
@@ -43,4 +46,7 @@ router.get(
 router.get('/projects/:communitySlug/:developerSlug', getProjectsBySlug);
 router.get('/price-indicator', getPriceIndicatorData);
 router.get('/search-projects', searchProjects);
+router.get("/with-counts", getProjectsWithCounts); // Add this new route
+router.get('/communities', getCommunitiesWithProjectCounts); // Get communities with project counts ( new projects)
+router.get('/community/:communityId', projectsByCommunity); // Get projects by community ( new projects)
 export default router;

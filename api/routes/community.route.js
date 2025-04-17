@@ -11,7 +11,8 @@ import {
   getCommunitiesByDeveloper,
   searchCommunitiesByAltText,
    getAllCommunitiesByDeveloper,
-getCommunityBySlug
+getCommunityBySlug,
+getCommunitiesWithCounts
 } from "../controllers/community.controller.js";
 
 const router = express.Router();
@@ -26,6 +27,6 @@ router.get("/featured-communities", getFeaturedCommunity);
 router.get("/communities/developer/:developerId", getCommunitiesByDeveloper);
 router.get("/communities/:developerId",  getAllCommunitiesByDeveloper);
 router.get("/search-by-alt-text", searchCommunitiesByAltText);
-
+router.get("/with-counts", getCommunitiesWithCounts); // Add this new route
 
 export default router;

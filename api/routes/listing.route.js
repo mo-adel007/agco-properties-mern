@@ -25,13 +25,15 @@ getSimilarListings,
 getListingsByDeveloper,
 getListingBySlug,
 filterListings,
-checkPermitNumber
+checkPermitNumber,
+getListingStats,
 } from "../controllers/listing.controller.js";
 import { verifyToken } from "../utils/verifyUser.js";
 
 const router = express.Router();
 
 router.post("/create", verifyToken, createListing);
+router.get('/stats', getListingStats);
 router.post("/publish/:id", verifyToken, publishListing);
 router.post("/unpublish/:id", verifyToken, unpublishListing);
 router.delete("/delete/:id", verifyToken, deleteListing);
@@ -59,5 +61,5 @@ router.get("/similar", getSimilarListings);
 router.get('/developer/:developer/:projectId', getListingsByDeveloper);
 router.get('/:slug', getListingBySlug);
 router.get("/admin/filter",verifyToken, filterListings);
-router.post('/check-permit', checkPermitNumber);
+router.post('/check-permit',verifyToken, checkPermitNumber);
 export default router;

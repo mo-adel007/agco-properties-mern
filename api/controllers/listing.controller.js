@@ -720,24 +720,44 @@ export const getListingsByQuery = async (req, res, next) => {
   }
 };
 
+
 export const getListingsByQueryParams = async (req, res) => {
   try {
-    const { type, status, category, isPublished, page = 1, limit = 15 } = req.query;
+    // Extract all query parameters with defaults
+    // page and limit have default values for pagination
+    const { 
+      type,           // commercial or residential
+      status,         // buy or rent
+      category,       // property category (Villa, Apartment, etc.)
+      bedrooms,       // number of bedrooms
+      isPublished,    // publication status
+      page = 1,       // current page (default: 1)
+      limit = 15      // items per page (default: 15)
+    } = req.query;
+
+    // Log incoming query parameters for debugging
     console.log("Received query params:", req.query);
 
-    // Parse pagination parameters
+    // Parse pagination parameters to ensure they're numbers
+    // Use logical OR to provide fallback values if parsing fails
     const parsedPage = parseInt(page) || 1;
     const parsedLimit = parseInt(limit) || 15;
+    
+    // Calculate offset for pagination
+    // Example: page 1 = offset 0, page 2 = offset 15, page 3 = offset 30
     const offset = (parsedPage - 1) * parsedLimit;
 
-    // Base query
+    // Initialize base query object
+    // These conditions are always applied regardless of filters
     let query = {
-      isPublished: true,
-      status: { $ne: "sold" }
+      isPublished: true,           // Only show published listings
+      status: { $ne: "sold" }      // Exclude sold properties
     };
 
-    // Add type filter if provided
+    // Property Type Filter
+    // Validates and adds type filter if provided
     if (type) {
+      // Validate type is either commercial or residential
       if (!["commercial", "residential"].includes(type)) {
         return res.status(400).json({
           success: false,
@@ -747,47 +767,72 @@ export const getListingsByQueryParams = async (req, res) => {
       query.type = type;
     }
 
-    // Add status filter if provided
+    // Status Filter (Buy/Rent)
+    // Validates and adds status filter if provided
     if (status) {
-      if (!["buy", "rent"].includes(status)) {
+      // Validate status is either Buy or Rent (case sensitive)
+      if (!["Buy", "Rent"].includes(status)) {
         return res.status(400).json({
           success: false,
-          message: "Invalid status. Must be either 'buy' or 'rent'"
+          message: "Invalid status. Must be either 'Buy' or 'Rent'"
         });
       }
-      query.status = status;
+      // Convert status to lowercase to match database values
+      query.status = status.toLowerCase();
     }
 
-    // Add category filter if provided
+    // Category Filter
+    // Adds category filter without validation (assuming valid categories from frontend)
     if (category) {
       query.category = category;
     }
 
+    // Bedrooms Filter
+    // NEW: Added explicit bedrooms filter
+    if (bedrooms) {
+      // Convert bedrooms string to number and validate
+      const bedroomsNum = parseInt(bedrooms);
+      if (!isNaN(bedroomsNum)) {
+        // Only add to query if it's a valid number
+        query.bedrooms = bedroomsNum;
+      }
+    }
+
+    // Log final query for debugging
     console.log("Final query:", query);
 
-    // Get total count for pagination
+    // Get total count of matching documents for pagination
     const totalListings = await Listing.countDocuments(query);
 
-    // Fetch listings with pagination
+    // Fetch listings with pagination and populate related data
     const listings = await Listing.find(query)
+      // Populate project data
       .populate({
         path: "project",
         select: "name latitude longitude"
       })
+      // Populate community data
       .populate("community", "name")
+      // Populate agent data
       .populate({
         path: "agent",
         select: "name title imageUrls slug",
       })
+      // Populate developer data
       .populate({
         path: "developer",
         select: "name logoUrl slug"
       })
-	.sort({createdAt: -1})
+      // Sort by creation date (newest first)
+      .sort({createdAt: -1})
+      // Apply pagination
       .skip(offset)
       .limit(parsedLimit)
+      // Convert to plain JavaScript object
       .lean();
 
+    // Transform listings to include only necessary data
+    // This helps reduce response size and standardize the format
     const listingsWithFormattedData = listings.map(listing => ({
       id: listing._id,
       name: listing.name,
@@ -808,7 +853,7 @@ export const getListingsByQueryParams = async (req, res) => {
       latitude: listing.latitude,
       longitude: listing.longitude,
       slug: listing.slug,
-      description:listing.description,
+      description: listing.description,
     }));
 
     // Calculate pagination metadata
@@ -816,6 +861,7 @@ export const getListingsByQueryParams = async (req, res) => {
     const hasNextPage = parsedPage < totalPages;
     const hasPrevPage = parsedPage > 1;
 
+    // Return successful response with data and pagination info
     return res.status(200).json({
       success: true,
       count: listingsWithFormattedData.length,
@@ -831,7 +877,10 @@ export const getListingsByQueryParams = async (req, res) => {
     });
 
   } catch (error) {
+    // Log error for debugging
     console.error("Server error:", error);
+    
+    // Return error response
     return res.status(500).json({
       success: false,
       message: "Server error",
@@ -855,12 +904,20 @@ export const getListingsByAdvancedSearch = async (req, res, next) => {
       maxPrice,
       parking,
       furnished,
+      page = 1,
+      limit = 15
     } = req.query;
 
     console.log("Received query params:", req.query);
 
+    // Parse pagination parameters
+    const parsedPage = parseInt(page) || 1;
+    const parsedLimit = parseInt(limit) || 15;
+    const offset = (parsedPage - 1) * parsedLimit;
+
     let query = { isPublished: true };
 
+    // Handle property type and status
     if (option) {
       if (option.includes("Commercial")) {
         query.type = "commercial";
@@ -871,22 +928,28 @@ export const getListingsByAdvancedSearch = async (req, res, next) => {
       }
     }
 
+    // Handle category and bedrooms with proper type conversion
     if (category) query.category = category;
-    if (bedrooms) query.bedrooms = bedrooms;
+    if (bedrooms) query.bedrooms = parseInt(bedrooms);
+
+    // Handle location search
     if (location) query.address = new RegExp(location, "i");
 
+    // Handle area range with proper type conversion
     if (minArea || maxArea) {
       query.size = {};
-      if (minArea) query.size.$gte = minArea;
-      if (maxArea) query.size.$lte = maxArea;
+      if (minArea) query.size.$gte = parseInt(minArea);
+      if (maxArea) query.size.$lte = parseInt(maxArea);
     }
 
+    // Handle price range with proper type conversion
     if (minPrice || maxPrice) {
       query.regularPrice = {};
-      if (minPrice) query.regularPrice.$gte = minPrice;
-      if (maxPrice) query.regularPrice.$lte = maxPrice;
+      if (minPrice) query.regularPrice.$gte = parseInt(minPrice);
+      if (maxPrice) query.regularPrice.$lte = parseInt(maxPrice);
     }
 
+    // Handle boolean filters
     if (parking && parking.toLowerCase() === "true") {
       query.parking = true;
     }
@@ -896,6 +959,10 @@ export const getListingsByAdvancedSearch = async (req, res, next) => {
 
     console.log("Final query:", query);
 
+    // Get total count for pagination
+    const totalListings = await Listing.countDocuments(query);
+
+    // Fetch listings with pagination
     const listings = await Listing.find(query)
       .populate("project", "name")
       .populate("community", "name")
@@ -903,22 +970,52 @@ export const getListingsByAdvancedSearch = async (req, res, next) => {
         path: "agent",
         select: "name title imageUrls slug",
       })
-	.populate({path:"developer",select:"name logoUrl slug"})
-	.sort({createdAt: -1})
-      .lean()
+      .populate({
+        path: "developer",
+        select: "name logoUrl slug"
+      })
+      .sort({ createdAt: -1 })
+      .skip(offset)
+      .limit(parsedLimit)
+      .lean();
 
-
-       const listingsWithFormattedData = listings.map(listing => ({
+    // Format the response data
+    const listingsWithFormattedData = listings.map(listing => ({
       ...listing,
       developerLogo: listing.developer?.logoUrl || null
     }));
 
-    res.status(200).json(listingsWithFormattedData);
+    // Calculate pagination metadata
+    const totalPages = Math.ceil(totalListings / parsedLimit);
+    const hasNextPage = parsedPage < totalPages;
+    const hasPrevPage = parsedPage > 1;
+
+    // Send response with pagination info
+    res.status(200).json({
+      success: true,
+      count: listingsWithFormattedData.length,
+      data: listingsWithFormattedData,
+      pagination: {
+        currentPage: parsedPage,
+        totalPages,
+        totalItems: totalListings,
+        itemsPerPage: parsedLimit,
+        hasNextPage,
+        hasPrevPage
+      }
+    });
+
   } catch (error) {
     console.error("Server error:", error);
-    res.status(500).json({ message: "Server error", error });
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message
+    });
   }
 };
+
+
 
 export const getStartingPriceByProject = async (req, res, next) => {
   try {

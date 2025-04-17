@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import PageMeta from "../models/pageMeta.model.js"; // Adjust the path to your model
-
+import dotenv from 'dotenv'
+dotenv.config({ path: '../../.env' });
 // Metadata for seeding
 const pages = [
   {
@@ -139,7 +140,7 @@ const pages = [
 
 const seedPages = async () => {
     try {
-      await mongoose.connect("mongodb+srv://muhamedadelfahmy99:I0EJy2z88wtdxiuY@cluster0.ovpkwoe.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0", { useNewUrlParser: true, useUnifiedTopology: true });
+      await mongoose.connect(process.env.MONGO, { useNewUrlParser: true, useUnifiedTopology: true });
   
       // Clear existing data
       await PageMeta.collection.drop().catch(error => {

@@ -323,6 +323,106 @@ export const getProjectByCommunity = async (req, res, next) => {
   }
 };
 
+// this is for the tabs on the new projects page 
+// Get communities with off-plan project counts
+export const getCommunitiesWithProjectCounts = async (req, res, next) => {
+  try {
+    const communities = await Community.aggregate([
+      // Lookup projects for each community
+      {
+        $lookup: {
+          from: "projects",
+          let: { communityId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$community", "$$communityId"] },
+                    { $eq: ["$status", "off plan"] },
+                    { $eq: ["$type", "residential"] }
+                  ]
+                }
+              }
+            }
+          ],
+          as: "projects"
+        }
+      },
+      // Project only needed fields
+      {
+        $project: {
+          _id: 1,
+          name: 1,
+          projectCount: { $size: "$projects" }
+        }
+      },
+      // Only include communities with projects
+      {
+        $match: {
+          projectCount: { $gt: 0 }
+        }
+      },
+      // Sort by project count descending
+      {
+        $sort: { projectCount: -1 }
+      }
+    ]);
+
+    res.status(200).json({
+      success: true,
+      communities
+    });
+  } catch (error) {
+    console.error("Error fetching communities with project counts:", error);
+    next(error);
+  }
+};
+
+// Get projects by community in new projects page
+export const projectsByCommunity = async (req, res, next) => {
+  try {
+    const { communityId } = req.params;
+    const { page = 1, limit = 12 } = req.query;
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const projects = await Project.find({
+      community: communityId,
+      status: "off plan",
+      type: "residential"
+    })
+    .populate("developer", "name logoUrl")
+    .populate("community", "name")
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(parseInt(limit))
+    .lean();
+
+    const total = await Project.countDocuments({
+      community: communityId,
+      status: "off plan",
+      type: "residential"
+    });
+
+    res.status(200).json({
+      success: true,
+      projects: projects.map(project => ({
+        ...project,
+        developerLogo: project.developer?.logoUrl || null
+      })),
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(total / parseInt(limit)),
+        totalItems: total
+      }
+    });
+  } catch (error) {
+    console.error("Error fetching projects by community:", error);
+    next(error);
+  }
+};
+
 // this is for the community page 
 export const getProjectsByCommunity = async (req, res, next) => {
   try {
